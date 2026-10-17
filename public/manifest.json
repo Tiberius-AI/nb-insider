@@ -1,0 +1,10 @@
+{
+  "name": "NB Insider — New Braunfels Hub",
+  "short_name": "NB Insider",
+  "description": "New Braunfels, TX development & roadwork map, live Comal & Guadalupe river flows, NBU stage info, and local alerts.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#064e3b",
+  "orientation": "portrait-primary"
+}
