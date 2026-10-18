@@ -1,12 +1,47 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import contractorsData from '../config/contractors.json'
-import { INITIAL_THREADS, SAMPLE_DAMAGE_PHOTOS, createDamagePhotoSvg } from '../data/initialConversations'
+import {
+  INITIAL_THREADS,
+  SAMPLE_DAMAGE_PHOTOS,
+  createDamagePhotoSvg,
+} from '../data/initialConversations'
 import { PlatformContext } from './usePlatform'
 
 function formatNowTime() {
   const now = new Date()
   return now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
+
+const ALFRED_PRESETS = [
+  {
+    id: 'book_first',
+    label: 'Answer and help them book',
+    description:
+      'Alfred answers roofing & exterior questions, provides local ballpark ranges, and guides homeowners to lock in an inspection slot.',
+    defaultHandoff: 'AI',
+  },
+  {
+    id: 'qualify_only',
+    label: 'Answer questions and collect details',
+    description:
+      'Alfred gathers ZIP code, photos, roof age, and urgency, then flags the thread Ready for Quote.',
+    defaultHandoff: 'AI',
+  },
+  {
+    id: 'draft_first',
+    label: 'Write a reply for me to approve',
+    description:
+      'Alfred prepares a private draft in the conversation room and waits for your one-click approval before texting the homeowner.',
+    defaultHandoff: 'Draft',
+  },
+  {
+    id: 'human_only',
+    label: 'Let me reply',
+    description:
+      'New inquiries log photos and job summaries silently without automated replies until you respond.',
+    defaultHandoff: 'Human',
+  },
+]
 
 export function PlatformProvider({ children }) {
   const [tenants, setTenants] = useState(contractorsData.tenants)
@@ -16,6 +51,24 @@ export function PlatformProvider({ children }) {
   const [threads, setThreads] = useState(INITIAL_THREADS)
   const [selectedThreadId, setSelectedThreadId] = useState(INITIAL_THREADS[0].id)
   const [toastNotification, setToastNotification] = useState(null)
+
+  // Tiberius "Make Alfred Your Own" Setup & AI Budget Telemetry (from owner-setup.mjs & owner.mjs)
+  const [alfredSetup, setAlfredSetup] = useState({
+    preset: 'book_first',
+    spentMicros: 4120000, // $4.12
+    reservedMicros: 380000, // $0.38
+    limitMicros: 25000000, // $25.00
+  })
+
+  // Tiberius Multi-Mode Helper & 3-Step Quote Modal State (from widget.mjs)
+  const [helperModal, setHelperModal] = useState({
+    open: false,
+    mode: 'chat', // 'chat' | 'quote' | 'booking' | 'text'
+    preselectedService: '',
+  })
+
+  // Tiberius Conversation Photo Lightbox State (from conversation-photos.mjs)
+  const [lightboxPhoto, setLightboxPhoto] = useState(null)
 
   const activeTenant = tenants.find((t) => t.id === activeTenantId) || tenants[0]
   const activePlan =
@@ -29,6 +82,33 @@ export function PlatformProvider({ children }) {
     setToastNotification({ id: Date.now(), ...toast })
   }
 
+  const openHelperModal = (mode = 'chat', preselectedService = '') => {
+    setHelperModal({
+      open: true,
+      mode,
+      preselectedService:
+        preselectedService || activeTenant.pricingRules.services[0]?.name || '',
+    })
+  }
+
+  const closeHelperModal = () => {
+    setHelperModal((prev) => ({ ...prev, open: false }))
+  }
+
+  const updateAlfredSetup = (newPresetId) => {
+    const presetObj =
+      ALFRED_PRESETS.find((p) => p.id === newPresetId) || ALFRED_PRESETS[0]
+    setAlfredSetup((prev) => ({
+      ...prev,
+      preset: presetObj.id,
+    }))
+    showToast({
+      title: 'Alfred Co-Pilot Behavior Updated',
+      message: `New conversations will use "${presetObj.label}" (${presetObj.defaultHandoff} mode).`,
+      type: 'success',
+    })
+  }
+
   const updateActiveTenantConfig = (updatedConfig) => {
     setTenants((prev) =>
       prev.map((t) => (t.id === activeTenant.id ? { ...t, ...updatedConfig } : t))
@@ -40,109 +120,181 @@ export function PlatformProvider({ children }) {
     })
   }
 
-  // Pillar 1 -> Pillar 2 Live Handshake from Embedded Contextual AI Dock
-  const submitHeroLead = ({ question, photo, phone, customerName, zipCode }) => {
-    const cleanPhone = phone?.trim() || '(512) 774-0192'
-    const name = customerName?.trim() || 'Homeowner Lead'
-    const zip = zipCode?.trim() || '78704'
-    const primaryService = activeTenant.pricingRules.services[0]
+  // Pillar 1 -> Pillar 2 Live Handshake from Embedded Contextual AI Dock or 3-Step Quote Modal
+  const submitHeroLead = ({
+    question,
+    photo,
+    photos = [],
+    phone,
+    customerName,
+    email,
+    zipCode,
+    address,
+    serviceName,
+    urgency,
+    propertyType = 'Single-family home',
+    roofAge = '10–20 years',
+    preferredWindow = 'Flexible',
+    sourceLabel = 'Hero AI Dock',
+  }) => {
+    const cleanPhone = phone?.trim() || activeTenant.phoneDisplay || '(603) 555-0192'
+    const name = customerName?.trim() || 'Alex Mercer'
+    const zip = zipCode?.trim() || '03106'
+    const matchedService =
+      activeTenant.pricingRules.services.find((s) => s.name === serviceName) ||
+      activeTenant.pricingRules.services[0]
+
+    const allInputPhotos =
+      photos.length > 0 ? photos : photo ? [photo] : []
 
     const resolvedPhotoUrl =
-      photo?.url ||
+      allInputPhotos[0]?.url ||
+      allInputPhotos[0]?.dataUrl ||
       createDamagePhotoSvg({
         title: `${activeTenant.niche.toUpperCase()} PRE-SCAN`,
-        zone: `ZIP ${zip} // DRIVEWAY UPLOAD`,
-        confidence: '95.4%',
+        zone: `ZIP ${zip} // ${sourceLabel.toUpperCase()}`,
+        confidence: '96.2%',
         accent: activeTenant.brandColor,
-        finding1: primaryService.name.slice(0, 28),
-        finding2: `Est: ${primaryService.range}`,
+        finding1: matchedService.name.slice(0, 28),
+        finding2: `Est: ${matchedService.range}`,
       })
 
     const visionAnalysis =
-      photo?.visionSummary ||
-      `Vision AI analyzed uploaded photo for ${activeTenant.companyName}: matched "${primaryService.name}" scope (${primaryService.urgency}). Estimated local range in ${activeTenant.city}: ${primaryService.range}.`
+      allInputPhotos[0]?.visionSummary ||
+      `Vision AI analyzed ${
+        allInputPhotos.length || 1
+      } photo(s) for ${activeTenant.companyName}: matched "${matchedService.name}" scope (${
+        urgency || matchedService.urgency
+      }). Estimated local range in ${activeTenant.city}: ${matchedService.range}.`
 
     const newThreadId = `thread-lead-${Date.now()}`
     const timestamp = formatNowTime()
 
+    const presetObj =
+      ALFRED_PRESETS.find((p) => p.id === alfredSetup.preset) || ALFRED_PRESETS[0]
+    const initialHandoff = presetObj.defaultHandoff // 'AI' | 'Draft' | 'Human'
+    const isAutopilot = initialHandoff !== 'Human'
+
     const userPrompt =
       question?.trim() ||
-      `Hi, I uploaded a photo of my ${activeTenant.niche.toLowerCase()} issue in ${zip}. What's the ballpark cost and earliest availability?`
+      `Hi, I submitted a ${matchedService.name.toLowerCase()} inquiry for ZIP ${zip} (${propertyType}, roof age: ${roofAge}). What's the ballpark cost and earliest availability?`
 
-    const aiReply = `Hi ${name.split(' ')[0]}! This is the ${activeTenant.companyName} AI Dispatch in ${activeTenant.city}. I just received your inquiry from our website dock${
-      photo ? ' and ran a Vision AI pre-scan on your photo' : ''
-    }. Based on our ${activeTenant.city} pricing rules for ${primaryService.name}, our transparent range is ${primaryService.range}${
+    const aiReplyText = `Hi ${name.split(' ')[0]}! This is Alfred, the ${
+      activeTenant.companyName
+    } AI Assistant in ${activeTenant.city}. I just received your ${sourceLabel} request${
+      allInputPhotos.length > 0 ? ' and ran a Vision AI pre-scan on your photo(s)' : ''
+    }. Based on our ${activeTenant.city} pricing rules for ${
+      matchedService.name
+    }, our transparent ballpark range is ${matchedService.range}${
       activeTenant.pricingRules.freeInspection
-        ? ' (includes a $0 on-site inspection)'
+        ? ' (includes a $0 on-site structural inspection)'
         : ` ($${activeTenant.pricingRules.baseDiagnostic} diagnostic waived with repair)`
-    }. Can we text you our 2:00 PM or 4:30 PM inspection window today?`
+    }. Can we lock in a ${preferredWindow.toLowerCase()} inspection window for you?`
+
+    const builtPhotos =
+      allInputPhotos.length > 0
+        ? allInputPhotos.map((p, idx) => ({
+            id: `photo-${Date.now()}-${idx}`,
+            caption: p.label || p.name || `Customer Upload #${idx + 1}`,
+            url: p.url || p.dataUrl || resolvedPhotoUrl,
+            visionTag: `Vision Pre-Scan: ${matchedService.range}`,
+          }))
+        : [
+            {
+              id: `photo-${Date.now()}`,
+              caption: `${sourceLabel} Diagnostic Frame`,
+              url: resolvedPhotoUrl,
+              visionTag: `Vision Pre-Scan: ${matchedService.range}`,
+            },
+          ]
+
+    const initialMessages = [
+      {
+        id: `msg-${Date.now()}-1`,
+        sender: 'customer',
+        channel: 'Webchat',
+        timestamp,
+        text: userPrompt,
+        photoUrl: resolvedPhotoUrl,
+        photoCaption: `${sourceLabel} • ${matchedService.name} (${builtPhotos.length} photo${
+          builtPhotos.length === 1 ? '' : 's'
+        })`,
+      },
+      {
+        id: `msg-${Date.now()}-2`,
+        sender: 'system',
+        channel: 'SMS',
+        timestamp,
+        eventType: 'handshake',
+        text: `⚡ Instant SMS Handshake triggered to ${cleanPhone} via ${activeTenant.companyName} (${activeTenant.phoneDisplay}) • Mode: ${initialHandoff}`,
+      },
+    ]
+
+    if (initialHandoff === 'AI') {
+      initialMessages.push({
+        id: `msg-${Date.now()}-3`,
+        sender: 'ai',
+        channel: 'SMS',
+        timestamp,
+        text: aiReplyText,
+      })
+    }
 
     const newThread = {
       id: newThreadId,
       contactName: name,
       phone: cleanPhone,
-      email: `${name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@homeowner.io`,
-      address: `Verified Territory (${zip}), ${activeTenant.city}`,
+      email:
+        email?.trim() ||
+        `${name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@homeowner.io`,
+      address: address?.trim()
+        ? `${address.trim()}, ${zip} (${activeTenant.city})`
+        : `Verified Territory (${zip}), ${activeTenant.city}`,
       zipVerified: true,
+      propertyType,
+      roofAge,
+      preferredWindow,
       unread: true,
       unreadCount: 1,
       lastActivity: 'Just now',
       channels: ['Webchat', 'SMS'],
       primaryChannel: 'SMS',
-      aiStatus: photo ? 'ready_for_quote' : 'qualifying',
-      aiAutopilot: true,
+      aiStatus: 'ready_for_quote',
+      aiAutopilot: isAutopilot,
+      handoffMode: initialHandoff,
+      alfredDraft:
+        initialHandoff === 'Draft'
+          ? {
+              id: `draft-${Date.now()}`,
+              createdAt: timestamp,
+              reason: `Alfred prepared a reply for ${name}'s ${matchedService.name} inquiry.`,
+              text: aiReplyText,
+            }
+          : null,
       jobSummary: {
-        serviceNeeded: photo?.serviceMatch || primaryService.name,
-        urgency: photo?.urgency || primaryService.urgency,
-        estimatedValue: photo?.estimatedValue || primaryService.avgValue,
-        estimatedRange: photo?.estimatedRange || primaryService.range,
+        serviceNeeded: matchedService.name,
+        urgency: urgency || matchedService.urgency,
+        estimatedValue: matchedService.avgValue,
+        estimatedRange: matchedService.range,
         visionSummary: visionAnalysis,
         bookedSlot: null,
         reviewStage: 'none',
-        photos: [
-          {
-            id: `photo-${Date.now()}`,
-            caption: photo?.label || 'Customer Hero AI Dock Upload',
-            url: resolvedPhotoUrl,
-            visionTag: `Vision Pre-Scan: ${photo?.estimatedRange || primaryService.range}`,
-          },
-        ],
+        photos: builtPhotos,
       },
-      messages: [
-        {
-          id: `msg-${Date.now()}-1`,
-          sender: 'customer',
-          channel: 'Webchat',
-          timestamp,
-          text: userPrompt,
-          photoUrl: resolvedPhotoUrl,
-          photoCaption: `Hero AI Dock Upload â€¢ ${photo?.label || primaryService.name}`,
-        },
-        {
-          id: `msg-${Date.now()}-2`,
-          sender: 'system',
-          channel: 'SMS',
-          timestamp,
-          eventType: 'handshake',
-          text: `âš¡ Instant SMS Handshake triggered to ${cleanPhone} via ${activeTenant.companyName} (${activeTenant.phoneDisplay})`,
-        },
-        {
-          id: `msg-${Date.now()}-3`,
-          sender: 'ai',
-          channel: 'SMS',
-          timestamp,
-          text: aiReply,
-        },
-      ],
+      messages: initialMessages,
     }
 
     setThreads((prev) => [newThread, ...prev])
     setSelectedThreadId(newThreadId)
+    setAlfredSetup((prev) => ({
+      ...prev,
+      spentMicros: prev.spentMicros + 45000,
+    }))
 
     showToast({
       title: 'Instant SMS Handshake Fired!',
       message: `Created live thread for ${name} (${cleanPhone}) with Vision AI pre-scan.`,
-      actionLabel: 'Open in 3-Pane Back-Office â†’',
+      actionLabel: 'Open in 3-Pane Back-Office →',
       onAction: () => setActiveView('backoffice'),
       type: 'success',
     })
@@ -150,7 +302,7 @@ export function PlatformProvider({ children }) {
     return newThreadId
   }
 
-  // Toggle AI Autopilot explicitly
+  // Toggle AI Autopilot explicitly (supports boolean or 3-mode Tiberius handoff)
   const toggleAutopilot = (threadId, nextState) => {
     const timestamp = formatNowTime()
     setThreads((prev) =>
@@ -158,6 +310,7 @@ export function PlatformProvider({ children }) {
         if (thread.id !== threadId) return thread
         const resolved =
           typeof nextState === 'boolean' ? nextState : !thread.aiAutopilot
+        const nextMode = resolved ? 'AI' : 'Human'
         const sysMsg = {
           id: `sys-${Date.now()}`,
           sender: 'system',
@@ -165,19 +318,118 @@ export function PlatformProvider({ children }) {
           timestamp,
           eventType: resolved ? 'autopilot_on' : 'autopilot_off',
           text: resolved
-            ? 'ðŸ¤– AI Autopilot switched ON â€” AI will qualify and quote using contractor rules.'
-            : 'âœ‹ Human Takeover activated â€” AI Autopilot switched OFF.',
+            ? '🤖 AI Autopilot (Alfred Replies) switched ON — qualifying & quoting using contractor rules.'
+            : '✋ Human Takeover activated — AI Autopilot switched OFF.',
         }
         return {
           ...thread,
           aiAutopilot: resolved,
+          handoffMode: nextMode,
           messages: [...thread.messages, sysMsg],
         }
       })
     )
   }
 
-  // CRITICAL FEATURE: Human sending a message automatically flips AI Autopilot to OFF
+  // Set explicit Tiberius 3-Mode Handoff ('AI' | 'Draft' | 'Human')
+  const setThreadHandoffMode = (threadId, mode) => {
+    const timestamp = formatNowTime()
+    setThreads((prev) =>
+      prev.map((thread) => {
+        if (thread.id !== threadId) return thread
+        const isAutopilot = mode !== 'Human'
+        const modeLabels = {
+          AI: '🤖 AI Autopilot ("Alfred replies" automatically)',
+          Draft: '📝 AI Draft Mode ("Alfred drafts" privately for approval)',
+          Human: '✋ Human Takeover ("I’ll handle it" — AI paused)',
+        }
+
+        const existingDraft =
+          mode === 'Draft' && !thread.alfredDraft
+            ? {
+                id: `draft-${Date.now()}`,
+                createdAt: timestamp,
+                reason: `Generated private draft for ${thread.jobSummary.serviceNeeded} (${thread.jobSummary.estimatedRange}).`,
+                text: `Hi ${
+                  thread.contactName.split(' ')[0]
+                }! Based on our ${activeTenant.city} pricing for ${
+                  thread.jobSummary.serviceNeeded
+                }, our transparent ballpark is ${
+                  thread.jobSummary.estimatedRange
+                }. Would you like our estimator to stop by today at 2:30 PM or tomorrow at 9:00 AM?`,
+              }
+            : thread.alfredDraft
+
+        return {
+          ...thread,
+          aiAutopilot: isAutopilot,
+          handoffMode: mode,
+          alfredDraft: existingDraft,
+          messages: [
+            ...thread.messages,
+            {
+              id: `sys-mode-${Date.now()}`,
+              sender: 'system',
+              channel: thread.primaryChannel || 'SMS',
+              timestamp,
+              eventType: isAutopilot ? 'autopilot_on' : 'autopilot_off',
+              text: `Switched conversation mode to ${modeLabels[mode] || mode}`,
+            },
+          ],
+        }
+      })
+    )
+  }
+
+  // Approve & Send or Dismiss Alfred Private Draft (from Tiberius owner.mjs)
+  const approveAlfredDraft = (threadId, customText) => {
+    const timestamp = formatNowTime()
+    setThreads((prev) =>
+      prev.map((thread) => {
+        if (thread.id !== threadId || !thread.alfredDraft) return thread
+        const finalMsg = (customText || thread.alfredDraft.text).trim()
+        return {
+          ...thread,
+          alfredDraft: null,
+          lastActivity: 'Just now',
+          messages: [
+            ...thread.messages,
+            {
+              id: `sys-draft-ok-${Date.now()}`,
+              sender: 'system',
+              channel: thread.primaryChannel || 'SMS',
+              timestamp,
+              eventType: 'autopilot_on',
+              text: '✅ Owner approved & dispatched Alfred’s private draft',
+            },
+            {
+              id: `ai-approved-${Date.now() + 1}`,
+              sender: 'ai',
+              channel: thread.primaryChannel || 'SMS',
+              timestamp,
+              text: finalMsg,
+            },
+          ],
+        }
+      })
+    )
+    showToast({
+      title: 'Alfred Draft Approved & Sent',
+      message: 'Dispatched approved reply to homeowner timeline.',
+      type: 'success',
+    })
+  }
+
+  const dismissAlfredDraft = (threadId) => {
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === threadId ? { ...thread, alfredDraft: null } : thread
+      )
+    )
+  }
+
+  // CRITICAL FEATURE (Blueprint + Tiberius owner.mjs):
+  // Human sending a message automatically flips AI Autopilot to OFF & handoffMode to 'Human'
   const sendHumanMessage = (threadId, text, channel = 'SMS') => {
     if (!text?.trim()) return
     const timestamp = formatNowTime()
@@ -185,7 +437,7 @@ export function PlatformProvider({ children }) {
     setThreads((prev) =>
       prev.map((thread) => {
         if (thread.id !== threadId) return thread
-        const wasAutopilotOn = thread.aiAutopilot
+        const wasAutopilotOn = thread.aiAutopilot || thread.handoffMode !== 'Human'
         const newMessages = [...thread.messages]
 
         if (wasAutopilotOn) {
@@ -195,7 +447,7 @@ export function PlatformProvider({ children }) {
             channel,
             timestamp,
             eventType: 'autopilot_off',
-            text: 'âœ‹ Human operator sent a reply â€” AI Autopilot automatically flipped to OFF so AI and humans never talk over each other.',
+            text: '✋ Human operator sent a reply — AI Autopilot automatically flipped to OFF ("I’ll handle it") so AI and humans never talk over each other.',
           })
         }
 
@@ -210,6 +462,7 @@ export function PlatformProvider({ children }) {
         return {
           ...thread,
           aiAutopilot: false,
+          handoffMode: 'Human',
           unread: false,
           unreadCount: 0,
           lastActivity: 'Just now',
@@ -236,10 +489,10 @@ export function PlatformProvider({ children }) {
     const range = thread.jobSummary.estimatedRange
 
     if (thread.aiStatus === 'needs_human') {
-      return `Hi ${firstName}, this is the Senior Project Manager at ${activeTenant.companyName}. I reviewed your photo and adjuster notes for ${service}. I can personally meet on-site tomorrow at 10:00 AM with full Xactimate documentation and tarpsâ€”shall I lock you onto my calendar?`
+      return `Hi ${firstName}, this is the Senior Project Estimator at ${activeTenant.companyName}. I reviewed your photo and notes for ${service}. I can personally meet on-site tomorrow at 10:00 AM to inspect the decking and flashing—shall I lock you onto my calendar?`
     }
     if (thread.aiStatus === 'ready_for_quote') {
-      return `Hi ${firstName}! Locking in your ${range} estimate range for ${service} here in ${activeTenant.city}. I have our lead technician available today at 2:30 PM or tomorrow at 9:00 AMâ€”reply 1 for today or 2 for tomorrow and you're all set!`
+      return `Hi ${firstName}! Locking in your ${range} estimate range for ${service} here in ${activeTenant.city}. I have our lead estimator available today at 2:30 PM or tomorrow at 9:00 AM—reply 1 for today or 2 for tomorrow and you're all set!`
     }
     return `Hi ${firstName}, thanks for reaching out to ${activeTenant.companyName}! Based on our ${activeTenant.city} pricing for ${service} (${range}), we can get a licensed specialist out to ${thread.address} today. If you can snap one quick photo from the driveway, I'll pre-load the exact materials on the truck!`
   }
@@ -256,7 +509,7 @@ export function PlatformProvider({ children }) {
   }
 
   // One-Click Calendar Booking in Right Pane
-  const bookInspectionSlot = (threadId, slotLabel = 'Today, 2:30 PM â€“ 4:00 PM') => {
+  const bookInspectionSlot = (threadId, slotLabel = 'Today, 2:30 PM – 4:00 PM') => {
     const timestamp = formatNowTime()
     setThreads((prev) =>
       prev.map((thread) => {
@@ -278,7 +531,7 @@ export function PlatformProvider({ children }) {
               channel: 'SMS',
               timestamp,
               eventType: 'booking',
-              text: `ðŸ“… Calendar Slot Confirmed: ${slotLabel} (${thread.jobSummary.serviceNeeded})`,
+              text: `📅 Calendar Slot Confirmed: ${slotLabel} (${thread.jobSummary.serviceNeeded})`,
             },
             {
               id: `book-sms-${Date.now() + 1}`,
@@ -301,22 +554,25 @@ export function PlatformProvider({ children }) {
   // PILLAR 3.1: Missed-Call Rescue Trigger
   const triggerMissedCallRescue = ({
     callerName = 'Jordan Miller',
-    callerPhone = '(512) 814-2905',
-    callerAddress = '3408 South Congress Ave, Austin, TX 78704',
+    callerPhone = '(603) 814-2905',
+    callerAddress = '146 Londonderry Tpke, Hooksett, NH 03106',
   } = {}) => {
     const timestamp = formatNowTime()
     const newThreadId = `thread-missed-${Date.now()}`
     const primaryService = activeTenant.pricingRules.services[0]
 
-    const rescueSms = `Hey ${callerName.split(' ')[0]}! Sorry we missed your call at ${activeTenant.companyName} (${activeTenant.city})â€”our crews are up on a job right now. How can we help today? Feel free to reply here or snap a photo of your project for an instant ballpark quote!`
+    const rescueSms = `Hey ${callerName.split(' ')[0]}! Sorry we missed your call at ${activeTenant.companyName} (${activeTenant.city})—our crews are up on a roof right now. How can we help today? Feel free to reply here or snap a photo of your project for an instant ballpark quote!`
 
     const newThread = {
       id: newThreadId,
       contactName: callerName,
       phone: callerPhone,
-      email: 'jordan.miller@southcongress.io',
+      email: 'jordan.miller@nhhome.io',
       address: callerAddress,
       zipVerified: true,
+      propertyType: 'Single-family home',
+      roofAge: 'Not sure',
+      preferredWindow: 'Flexible',
       unread: true,
       unreadCount: 1,
       lastActivity: 'Just now',
@@ -324,9 +580,11 @@ export function PlatformProvider({ children }) {
       primaryChannel: 'Missed Call',
       aiStatus: 'qualifying',
       aiAutopilot: true,
+      handoffMode: 'AI',
+      alfredDraft: null,
       jobSummary: {
         serviceNeeded: `${primaryService.name} (Missed-Call Rescue)`,
-        urgency: 'High â€” Inbound Call Rescue',
+        urgency: 'High — Inbound Call Rescue',
         estimatedValue: primaryService.avgValue,
         estimatedRange: primaryService.range,
         visionSummary:
@@ -342,7 +600,7 @@ export function PlatformProvider({ children }) {
           channel: 'Missed Call',
           timestamp,
           eventType: 'missed_call',
-          text: `ðŸ“ž Missed Inbound Call from ${callerPhone} â€” Automated Missed-Call Rescue fired in 1.4s`,
+          text: `📞 Missed Inbound Call from ${callerPhone} — Automated Missed-Call Rescue fired in 1.4s`,
         },
         {
           id: `mc-2-${Date.now()}`,
@@ -358,9 +616,9 @@ export function PlatformProvider({ children }) {
     setSelectedThreadId(newThreadId)
 
     showToast({
-      title: 'ðŸ“ž Missed-Call Rescue Fired (1.4s)',
+      title: '📞 Missed-Call Rescue Fired (1.4s)',
       message: `Sent instant conversational SMS to ${callerName} (${callerPhone}).`,
-      actionLabel: 'View Thread â†’',
+      actionLabel: 'View Thread →',
       onAction: () => setActiveView('backoffice'),
       type: 'info',
     })
@@ -368,7 +626,7 @@ export function PlatformProvider({ children }) {
     return newThreadId
   }
 
-  // PILLAR 3.2: TOS-Safe Conversational Review Engine â€” Step 1: Natural Check-In
+  // PILLAR 3.2: TOS-Safe Conversational Review Engine — Step 1: Natural Check-In
   const triggerJobCompletedCheckIn = (threadId = selectedThreadId) => {
     const timestamp = formatNowTime()
     setThreads((prev) =>
@@ -390,7 +648,7 @@ export function PlatformProvider({ children }) {
               channel: 'SMS',
               timestamp,
               eventType: 'job_completed',
-              text: 'âœ… Job Marked Completed â€” TOS-Safe Conversational Check-In triggered (Zero Star-Gating)',
+              text: '✅ Job Marked Completed — TOS-Safe Conversational Check-In triggered (Zero Star-Gating)',
             },
             {
               id: `rev-sms-${Date.now() + 1}`,
@@ -411,11 +669,11 @@ export function PlatformProvider({ children }) {
     })
   }
 
-  // PILLAR 3.2: Step 2 â€” AI Sentiment Analysis & Routing (Positive -> Google Link, Negative -> ðŸš¨ Needs Human)
+  // PILLAR 3.2: Step 2 — AI Sentiment Analysis & Routing
   const simulateCustomerReviewReply = (
     threadId = selectedThreadId,
     customReplyText = '',
-    forcedSentiment = null // 'positive' | 'negative' | null (auto-detect)
+    forcedSentiment = null
   ) => {
     const timestamp = formatNowTime()
     const negativeKeywords = [
@@ -461,21 +719,20 @@ export function PlatformProvider({ children }) {
         }
 
         if (!isNegative) {
-          // Positive sentiment -> Direct Google Review link
           const sysRouteMsg = {
             id: `rev-route-pos-${Date.now() + 1}`,
             sender: 'system',
             channel: 'SMS',
             timestamp,
             eventType: 'sentiment_positive',
-            text: 'ðŸŸ¢ AI Sentiment Analysis: POSITIVE (0.97) â€” Routing direct Google Review link',
+            text: '🟢 AI Sentiment Analysis: POSITIVE (0.97) — Routing direct Google Review link',
           }
           const aiReviewLinkMsg = {
             id: `rev-ai-pos-${Date.now() + 2}`,
             sender: 'ai',
             channel: 'SMS',
             timestamp,
-            text: `That means the world to our local crew, ${firstName}! If you have 30 seconds, would you mind sharing your experience on Google? Here is our direct link: ${activeTenant.googleReviewUrl} â€” Thank you again!`,
+            text: `That means the world to our local crew, ${firstName}! If you have 30 seconds, would you mind sharing your experience on Google? Here is our direct link: ${activeTenant.googleReviewUrl} — Thank you again!`,
           }
 
           return {
@@ -488,27 +745,27 @@ export function PlatformProvider({ children }) {
             messages: [...thread.messages, customerMsg, sysRouteMsg, aiReviewLinkMsg],
           }
         } else {
-          // Negative sentiment -> Private escalation to ðŸš¨ Needs Human + Autopilot OFF
           const sysEscalationMsg = {
             id: `rev-route-neg-${Date.now() + 1}`,
             sender: 'system',
             channel: 'SMS',
             timestamp,
             eventType: 'escalation',
-            text: 'ðŸš¨ AI Sentiment Analysis: ISSUE DETECTED (0.94) â€” Flipped thread to [ðŸš¨ Needs Human], paused AI Autopilot, and alerted Owner privately.',
+            text: '🚨 AI Sentiment Analysis: ISSUE DETECTED (0.94) — Flipped thread to [🚨 Needs Human], paused AI Autopilot, and alerted Owner privately.',
           }
           const aiEmpatheticHoldMsg = {
             id: `rev-ai-neg-${Date.now() + 2}`,
             sender: 'ai',
             channel: 'SMS',
             timestamp,
-            text: `Thank you for telling us directly, ${firstName}â€”I am so sorry about that. I have flagged our owner & field supervisor right now so we can come make this 100% right today. Expect a personal call/text shortly.`,
+            text: `Thank you for telling us directly, ${firstName}—I am so sorry about that. I have flagged our owner & field supervisor right now so we can come make this 100% right today. Expect a personal call/text shortly.`,
           }
 
           return {
             ...thread,
             aiStatus: 'needs_human',
             aiAutopilot: false,
+            handoffMode: 'Human',
             unread: true,
             unreadCount: thread.unreadCount + 1,
             lastActivity: 'Just now',
@@ -530,13 +787,13 @@ export function PlatformProvider({ children }) {
     showToast({
       title:
         forcedSentiment === 'negative'
-          ? 'ðŸš¨ Negative Sentiment Escalated to Human'
-          : 'â­ Sentiment Analyzed & Routed',
+          ? '🚨 Negative Sentiment Escalated to Human'
+          : '⭐ Sentiment Analyzed & Routed',
       message:
         forcedSentiment === 'negative'
-          ? 'Thread flipped to ðŸš¨ Needs Human & AI Autopilot paused.'
+          ? 'Thread flipped to 🚨 Needs Human & AI Autopilot paused.'
           : 'Direct Google Review link sent in Unified Timeline.',
-      actionLabel: 'Inspect Timeline â†’',
+      actionLabel: 'Inspect Timeline →',
       onAction: () => setActiveView('backoffice'),
       type: forcedSentiment === 'negative' ? 'warning' : 'success',
     })
@@ -571,6 +828,17 @@ export function PlatformProvider({ children }) {
         selectThread,
         submitHeroLead,
         toggleAutopilot,
+        setThreadHandoffMode,
+        approveAlfredDraft,
+        dismissAlfredDraft,
+        alfredSetup,
+        updateAlfredSetup,
+        alfredPresets: ALFRED_PRESETS,
+        helperModal,
+        openHelperModal,
+        closeHelperModal,
+        lightboxPhoto,
+        setLightboxPhoto,
         sendHumanMessage,
         updateThreadStatus,
         generateCoPilotSuggestion,
@@ -588,4 +856,3 @@ export function PlatformProvider({ children }) {
     </PlatformContext.Provider>
   )
 }
-

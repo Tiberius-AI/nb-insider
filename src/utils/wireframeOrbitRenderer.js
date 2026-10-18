@@ -1,4 +1,4 @@
-﻿// Renders either a loaded .webp Image frame (from 150-frame Higgsfield sequence)
+// Renders either a loaded .webp Image frame (from 150-frame Higgsfield sequence)
 // OR a procedural 3D architectural wireframe camera orbit across frames 1..150.
 
 function project3D(x, y, z, yaw, pitch, width, height, scale = 1) {
@@ -26,7 +26,16 @@ function project3D(x, y, z, yaw, pitch, width, height, scale = 1) {
   }
 }
 
-export function renderScrubFrame(ctx, width, height, frameIndex, totalFrames, tenant, customFrames) {
+export function renderScrubFrame(
+  ctx,
+  width,
+  height,
+  frameIndex,
+  totalFrames,
+  tenant,
+  customFrames,
+  isHybridOverlay = false
+) {
   ctx.clearRect(0, 0, width, height)
 
   const progress = Math.max(0, Math.min(1, frameIndex / (totalFrames - 1)))
@@ -53,20 +62,22 @@ export function renderScrubFrame(ctx, width, height, frameIndex, totalFrames, te
     return
   }
 
-  // 2. Procedural 3D Wireframe Camera Orbit Fallback (150-Frame Higgsfield Orbit)
-  const bgGrad = ctx.createRadialGradient(
-    width * 0.5,
-    height * 0.42,
-    40,
-    width * 0.5,
-    height * 0.5,
-    Math.max(width, height) * 0.75
-  )
-  bgGrad.addColorStop(0, '#131c2e')
-  bgGrad.addColorStop(0.55, '#0b101b')
-  bgGrad.addColorStop(1, '#05080f')
-  ctx.fillStyle = bgGrad
-  ctx.fillRect(0, 0, width, height)
+  // 2. Procedural 3D Wireframe Camera Orbit Fallback (or Transparent Hybrid Telemetry Overlay)
+  if (!isHybridOverlay) {
+    const bgGrad = ctx.createRadialGradient(
+      width * 0.5,
+      height * 0.42,
+      40,
+      width * 0.5,
+      height * 0.5,
+      Math.max(width, height) * 0.75
+    )
+    bgGrad.addColorStop(0, '#131c2e')
+    bgGrad.addColorStop(0.55, '#0b101b')
+    bgGrad.addColorStop(1, '#05080f')
+    ctx.fillStyle = bgGrad
+    ctx.fillRect(0, 0, width, height)
+  }
 
   // Camera orbit angles driven by frameIndex (0..149)
   const yaw = -0.65 + progress * Math.PI * 1.45

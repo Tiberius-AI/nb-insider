@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import {
   MapPin,
   Sparkles,
@@ -12,13 +12,15 @@ import {
   Star,
   ThumbsUp,
   AlertTriangle,
+  Home,
+  ZoomIn,
 } from 'lucide-react'
 import { usePlatform } from '../../context/usePlatform'
 
 const AVAILABLE_SLOTS = [
-  'Today, 2:30 PM â€“ 4:00 PM',
-  'Tomorrow, 9:00 AM â€“ 10:30 AM',
-  'Tomorrow, 1:30 PM â€“ 3:00 PM',
+  'Today, 2:30 PM – 4:00 PM',
+  'Tomorrow, 9:00 AM – 10:30 AM',
+  'Tomorrow, 1:30 PM – 3:00 PM',
 ]
 
 export default function JobSummaryCard() {
@@ -28,6 +30,7 @@ export default function JobSummaryCard() {
     bookInspectionSlot,
     triggerJobCompletedCheckIn,
     simulateCustomerReviewReply,
+    setLightboxPhoto,
   } = usePlatform()
 
   const [selectedSlot, setSelectedSlot] = useState(AVAILABLE_SLOTS[0])
@@ -62,6 +65,16 @@ export default function JobSummaryCard() {
             <MapPin size={13} style={{ color: activeTenant.brandColor }} />
             <span>{selectedThread.address}</span>
           </div>
+          {selectedThread.propertyType && (
+            <div className="detail-item">
+              <Home size={13} />
+              <span>
+                {selectedThread.propertyType} • Roof Age:{' '}
+                {selectedThread.roofAge || 'TBD'} • Window:{' '}
+                {selectedThread.preferredWindow || 'Flexible'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -103,24 +116,39 @@ export default function JobSummaryCard() {
           />
         </div>
 
-        {/* 3. Uploaded Customer Photos + Vision AI Pre-Analysis Summary */}
+        {/* 3. Photos from the Request + Vision AI Pre-Analysis Summary (Clickable for Lightbox) */}
         <div className="extraction-block">
           <div className="block-label-row">
             <span className="extraction-label">
-              <Camera size={12} /> Vision AI Pre-Analysis
+              <Camera size={12} /> Photos from the Request
             </span>
             <span className="photo-count-tag">
-              {jobSummary.photos.length} Photo{jobSummary.photos.length === 1 ? '' : 's'}
+              {jobSummary.photos.length} Photo
+              {jobSummary.photos.length === 1 ? '' : 's'}
             </span>
           </div>
 
           {jobSummary.photos.length > 0 && (
             <div className="summary-photos-grid">
               {jobSummary.photos.map((photo) => (
-                <div key={photo.id} className="summary-photo-card">
+                <button
+                  key={photo.id}
+                  type="button"
+                  className="summary-photo-card clickable-photo"
+                  onClick={() =>
+                    setLightboxPhoto({
+                      url: photo.url,
+                      caption: `${photo.caption} (${photo.visionTag})`,
+                    })
+                  }
+                  title="Click to enlarge photo"
+                >
                   <img src={photo.url} alt={photo.caption} />
-                  <div className="summary-photo-tag">{photo.visionTag}</div>
-                </div>
+                  <div className="summary-photo-tag">
+                    <span>{photo.visionTag}</span>
+                    <ZoomIn size={11} />
+                  </div>
+                </button>
               ))}
             </div>
           )}
@@ -163,7 +191,7 @@ export default function JobSummaryCard() {
                 onClick={() => bookInspectionSlot(selectedThread.id, selectedSlot)}
               >
                 <CalendarCheck size={14} />
-                <span>ðŸ“… Book Slot & Text Confirmation</span>
+                <span>📅 Book Slot & Text Confirmation</span>
               </button>
             </div>
           )}
@@ -180,7 +208,7 @@ export default function JobSummaryCard() {
               className="btn-review-step"
               onClick={() => triggerJobCompletedCheckIn(selectedThread.id)}
             >
-              1. Send â€œHow did everything go?â€ SMS
+              1. Send “How did everything go?” SMS
             </button>
             <div className="sentiment-sim-row">
               <button
@@ -199,7 +227,7 @@ export default function JobSummaryCard() {
                 onClick={() =>
                   simulateCustomerReviewReply(selectedThread.id, '', 'negative')
                 }
-                title="Simulate negative customer reply -> Escalates to ðŸš¨ Needs Human"
+                title="Simulate negative customer reply -> Escalates to 🚨 Needs Human"
               >
                 <AlertTriangle size={12} /> Sim Issue Reply
               </button>

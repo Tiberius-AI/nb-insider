@@ -1,12 +1,12 @@
-﻿{
+{
   "platformPlans": [
     {
       "id": "rent",
       "name": "Rent (Managed AI + Scrollytelling)",
-      "priceRange": "$297â€“$397/mo",
+      "priceRange": "$297–$397/mo",
       "badge": "Fastest Launch",
       "highlights": [
-        "Turnkey Higgsfield 150-Frame Scrollytelling Site",
+        "Turnkey Higgsfield Video + 150-Frame Scrollytelling Site",
         "Embedded Contextual AI Dock + Vision Damage Pre-Scan",
         "3-Pane Unified Conversation Room + Missed-Call Rescue",
         "TOS-Safe Conversational Review Engine"
@@ -15,13 +15,13 @@
     {
       "id": "rent-to-own",
       "name": "Rent-to-Own (Equity Builder)",
-      "priceRange": "$497â€“$597/mo",
+      "priceRange": "$497–$597/mo",
       "badge": "Most Popular",
       "highlights": [
         "Everything in Rent + 100% Ownership After 12 Months",
         "Custom Higgsfield Camera Orbit Shoot & FFmpeg Pipeline",
-        "Custom Contractor Pricing Rules & Voice-to-SMS Co-Pilot",
-        "Dedicated Local Number & CRM/Calendar Sync"
+        "Alfred 3-Mode Co-Pilot (Autopilot, Draft-First, Human Takeover)",
+        "Dedicated Local Number & Cal.com/CRM Sync"
       ]
     },
     {
@@ -39,20 +39,222 @@
   ],
   "tenants": [
     {
+      "id": "scg-roofing",
+      "companyName": "SCG Roofing",
+      "niche": "Roofing, Ventilation & Exterior Systems",
+      "city": "Hooksett & Southern NH",
+      "addressLine": "146 Londonderry Turnpike, Unit 20, Hooksett, NH 03106",
+      "brandColor": "#d97742",
+      "accentSecondary": "#e8a578",
+      "phoneDisplay": "(603) 420-2824",
+      "emailDisplay": "info@SCGRoofs.com",
+      "bookingUrl": "https://cal.com/tiberius/contractor",
+      "googleReviewUrl": "https://g.page/r/scg-roofing-hooksett/review",
+      "heroHeadline": "For the home under your roof.",
+      "heroSubheadline": "A drip after rain. Shingles showing their age. A project you’re ready to start. Scroll to inspect the structure—or drop a photo below for an instant AI scope.",
+      "trustCredentials": [
+        { "metric": "325+", "label": "Roofs completed" },
+        { "metric": "40+", "label": "Years of experience" },
+        { "metric": "Licensed & insured", "label": "Southern NH coverage" },
+        { "metric": "Locally based", "label": "Hooksett, NH (03106)" }
+      ],
+      "media": {
+        "poster": "/assets/roofing/reveal-v1/poster.webp",
+        "video": "/assets/roofing/reveal-v3/scrub.mp4",
+        "detailImage": "/assets/roofing/reveal-v2/roof-detail.webp",
+        "helperAvatar": "/assets/roofing/helper-v1/avatar.webp",
+        "duration": 8,
+        "fps": 24,
+        "width": 1920,
+        "height": 1080
+      },
+      "frameSequence": {
+        "totalFrames": 150,
+        "basePath": "/sequences/scg-roofing/frame_",
+        "extension": ".webp",
+        "wireframeModel": "roof-truss-orbit",
+        "cameraLabel": "TIBERIUS × HIGGSFIELD // 24FPS ARCHITECTURAL REVEAL + 150-FRAME .WEBP"
+      },
+      "projects": [
+        {
+          "city": "Manchester, NH",
+          "image": "/assets/roofing/scg-projects/manchester.webp",
+          "scope": "Architectural Shingle & Ridge Ventilation System",
+          "quote": "Patrick and his team were fantastic to deal with.",
+          "author": "John · Manchester, NH"
+        },
+        {
+          "city": "Dover, NH",
+          "image": "/assets/roofing/scg-projects/dover.webp",
+          "scope": "Complete Tear-Off, Ice & Water Shield + New Flashing",
+          "quote": "Professional, responsive, and does excellent work.",
+          "author": "Joyce · Londonderry, NH"
+        },
+        {
+          "city": "Nottingham, NH",
+          "image": "/assets/roofing/scg-projects/nottingham.webp",
+          "scope": "Full Roof Replacement & Structural Decking Check",
+          "quote": "Completely replaced our existing roof.",
+          "author": "Sue · Nottingham, NH"
+        }
+      ],
+      "faqs": [
+        {
+          "q": "Can I start with a leak or a small repair?",
+          "a": "Yes. We handle roof leak diagnostics, flashing repairs, and storm damage. Tell us what you’ve noticed and when it began—or snap a driveway photo in the AI Dock and you don’t need to diagnose the cause first."
+        },
+        {
+          "q": "Do you also handle gutters, skylights, and attic ventilation?",
+          "a": "Yes. Proper attic ventilation, underlayment/decking repair, gutter installation & cleaning, and skylight flashing work together with your shingles to protect the structure underneath."
+        },
+        {
+          "q": "Where are you based and what areas do you cover?",
+          "a": "Based in Hooksett, NH (146 Londonderry Turnpike) serving Manchester, Dover, Nottingham, Londonderry, Concord, Nashua, and all of Southern New Hampshire."
+        },
+        {
+          "q": "Can I include photos with my question or quote request?",
+          "a": "Yes! Upload up to 3 photos (JPG, PNG, or WebP). Our client-side optimizer resizes them automatically and runs a Vision AI pre-scan for our estimator."
+        },
+        {
+          "q": "How do ballpark ranges and inspections work?",
+          "a": "Our AI assistant provides transparent local ballpark ranges right away based on our contractor pricing table, and helps you lock in a confirmed on-site inspection slot."
+        }
+      ],
+      "pricingRules": {
+        "currency": "USD",
+        "freeInspection": true,
+        "baseDiagnostic": 0,
+        "minimumDispatch": 350,
+        "services": [
+          {
+            "name": "Roof Leak & Flashing Repair",
+            "category": "Fix a problem",
+            "description": "Leaks, damaged shingles, chimney/valley flashing, or a ceiling stain that appeared after rain.",
+            "range": "$450 – $950",
+            "avgValue": 680,
+            "urgency": "High — Active Water Intrusion",
+            "duration": "2–4 hrs"
+          },
+          {
+            "name": "Full Architectural Roof Replacement",
+            "category": "Plan a new roof",
+            "description": "Complete tear-off, synthetic underlayment, ice & water shield, and architectural shingle system.",
+            "range": "$12,500 – $21,500",
+            "avgValue": 16200,
+            "urgency": "Scheduled Capital Project",
+            "duration": "1–2 days"
+          },
+          {
+            "name": "Attic Ventilation & Ridge Vent Upgrade",
+            "category": "Supporting system",
+            "description": "Help heat and winter moisture escape your attic to prevent ice dams and premature shingle curl.",
+            "range": "$650 – $1,450",
+            "avgValue": 980,
+            "urgency": "Medium — Preventative Efficiency",
+            "duration": "Half day"
+          },
+          {
+            "name": "Underlayment & Roof Decking Repair",
+            "category": "Structural layer",
+            "description": "Address soft/rotted plywood decking and compromised ice-and-water barriers beneath the shingles.",
+            "range": "$550 – $1,650",
+            "avgValue": 1050,
+            "urgency": "High — Structural Integrity",
+            "duration": "3–5 hrs"
+          },
+          {
+            "name": "Gutter Installation & Leaf Guard System",
+            "category": "Drainage",
+            "description": "Keep rainwater and snowmelt moving cleanly away from fascia boards and foundations.",
+            "range": "$950 – $2,400",
+            "avgValue": 1550,
+            "urgency": "Routine — Exterior Drainage",
+            "duration": "1 day"
+          },
+          {
+            "name": "Skylight Installation & Curb Re-Flashing",
+            "category": "Daylight & seal",
+            "description": "Bring natural light into your home with a new skylight or stop leaks around an aging curb.",
+            "range": "$850 – $2,600",
+            "avgValue": 1680,
+            "urgency": "Medium — Weatherproofing",
+            "duration": "Half day"
+          }
+        ],
+        "aiPromptRules": "Look beyond the surface shingles: always ask about interior stains, attic ventilation, or decking age in Southern NH. Offer a $0 structural roof inspection and provide transparent local ballpark ranges before confirming a morning or afternoon visit."
+      },
+      "callouts": [
+        {
+          "id": "callout-1",
+          "startProgress": 0.08,
+          "endProgress": 0.34,
+          "position": "top-left",
+          "eyebrow": "01 // LOOK BEYOND THE SHINGLES",
+          "title": "Structural Diagnostics: Flashing, Decking & Rot",
+          "body": "There’s more protecting your home than the top layer. As the camera orbits, we inspect chimney flashing, valley seals, and plywood decking integrity.",
+          "metric": "325+ NH Roofs Completed",
+          "frameRange": "SCENE 01 // 08%–34%"
+        },
+        {
+          "id": "callout-2",
+          "startProgress": 0.38,
+          "endProgress": 0.65,
+          "position": "top-right",
+          "eyebrow": "02 // ICE DAM & ATTIC VENTILATION",
+          "title": "Engineered for New Hampshire Winters",
+          "body": "Balanced intake/ridge ventilation and ice-and-water shield membranes prevent winter freeze-thaw backups before they reach your drywall.",
+          "metric": "40+ Years Construction Exp.",
+          "frameRange": "SCENE 02 // 38%–65%"
+        },
+        {
+          "id": "callout-3",
+          "startProgress": 0.69,
+          "endProgress": 0.95,
+          "position": "top-left",
+          "eyebrow": "03 // ALFRED AI + HUMAN HANDSHAKE",
+          "title": "Less Guesswork. A Better First Conversation.",
+          "body": "Upload up to 3 photos or start a 3-step quote below. Alfred (our AI roof assistant) pre-scans your scope and texts our Hooksett crew immediately.",
+          "metric": "Instant SMS + Photo Scope",
+          "frameRange": "SCENE 03 // 69%–95%"
+        }
+      ]
+    },
+    {
       "id": "apex-roofing",
       "companyName": "Apex Roofing & Storm",
       "niche": "Roofing & Storm Restoration",
       "city": "Austin, TX",
+      "addressLine": "4812 South Congress Ave, Suite 110, Austin, TX 78704",
       "brandColor": "#f97316",
       "accentSecondary": "#fbbf24",
       "phoneDisplay": "(512) 890-4420",
+      "emailDisplay": "dispatch@apexroofingaustin.io",
+      "bookingUrl": "https://cal.com/tiberius/contractor",
       "googleReviewUrl": "https://g.page/r/apex-roofing-austin/review",
+      "heroHeadline": "Storm-Tested Austin Roofing.",
+      "heroSubheadline": "Pinpoint hail bruising, lifted flashing, and ridge wear in 60 seconds. Scroll to scrub our 150-frame orbit or drop a driveway photo below.",
+      "trustCredentials": [
+        { "metric": "640+", "label": "Storm claims & roofs" },
+        { "metric": "Class-4", "label": "Impact shingle specialists" },
+        { "metric": "98.4%", "label": "Vision AI scope match" },
+        { "metric": "Austin, TX", "label": "Local master crews" }
+      ],
+      "media": {
+        "poster": "/assets/roofing/reveal-v1/poster.webp",
+        "video": "/assets/roofing/reveal-v3/scrub.mp4",
+        "detailImage": "/assets/roofing/reveal-v2/roof-detail.webp",
+        "helperAvatar": "/assets/roofing/helper-v1/avatar.webp",
+        "duration": 8,
+        "fps": 24,
+        "width": 1920,
+        "height": 1080
+      },
       "frameSequence": {
         "totalFrames": 150,
         "basePath": "/sequences/apex-roofing/frame_",
         "extension": ".webp",
         "wireframeModel": "roof-truss-orbit",
-        "cameraLabel": "HIGGSFIELD ORBIT // 35MM ANAMORPHIC // 360Â° RIDGE & FLASHING RIG"
+        "cameraLabel": "HIGGSFIELD ORBIT // 35MM ANAMORPHIC // 360° RIDGE & FLASHING RIG"
       },
       "pricingRules": {
         "currency": "USD",
@@ -62,31 +264,39 @@
         "services": [
           {
             "name": "Chimney & Step-Flashing Leak Repair",
-            "range": "$450 â€“ $850",
+            "category": "Fix a problem",
+            "description": "Re-seal and counter-flash masonry chimney steps and wall transitions.",
+            "range": "$450 – $850",
             "avgValue": 650,
-            "urgency": "High â€” Active Water Intrusion",
-            "duration": "2â€“3 hrs"
+            "urgency": "High — Active Water Intrusion",
+            "duration": "2–3 hrs"
+          },
+          {
+            "name": "Full Class-4 Impact Shingle Replacement",
+            "category": "Plan a new roof",
+            "description": "UL 2218 Class-4 hail-rated architectural system that qualifies for Texas insurance discounts.",
+            "range": "$11,500 – $19,800",
+            "avgValue": 14800,
+            "urgency": "Insurance / Scheduled Scope",
+            "duration": "1–2 days"
           },
           {
             "name": "Ridge Vent & Pipe Boot Replacement",
-            "range": "$380 â€“ $720",
+            "category": "Supporting system",
+            "description": "Upgrade cracked neoprene plumbing jacks to lifetime lead/silicone boots.",
+            "range": "$380 – $720",
             "avgValue": 540,
-            "urgency": "Medium â€” Preventative Seal",
+            "urgency": "Medium — Preventative Seal",
             "duration": "2 hrs"
           },
           {
             "name": "Emergency Storm Tarping & Dry-In",
-            "range": "$295 â€“ $550",
+            "category": "Emergency response",
+            "description": "Same-day synthetic dry-in and wind-creased shingle stabilization.",
+            "range": "$295 – $550",
             "avgValue": 420,
-            "urgency": "Critical â€” Same-Day Dispatch",
+            "urgency": "Critical — Same-Day Dispatch",
             "duration": "90 mins"
-          },
-          {
-            "name": "Full Class-4 Impact Shingle Replacement",
-            "range": "$11,500 â€“ $19,800",
-            "avgValue": 14800,
-            "urgency": "Insurance / Scheduled Scope",
-            "duration": "1â€“2 days"
           }
         ],
         "aiPromptRules": "Always offer free drone + thermal moisture inspection in Austin metro. Quote flashing/boot repairs between $380-$850 and never promise exact insurance coverage before physical deck check."
@@ -101,7 +311,7 @@
           "title": "Pinpoint Hail, Lifted Shingles & Flashing Gaps",
           "body": "Snap a photo from your driveway. Our Vision AI highlights granule loss, compromised step-flashing, and ridge wear before a truck even rolls.",
           "metric": "98.4% Scope Accuracy",
-          "frameRange": "FRAMES 009â€“046"
+          "frameRange": "FRAMES 009–046"
         },
         {
           "id": "callout-2",
@@ -109,10 +319,10 @@
           "endProgress": 0.63,
           "position": "top-right",
           "eyebrow": "02 // ALGORITHMIC PRICE LOCK",
-          "title": "Upfront Austin Pricing â€” Zero High-Pressure Sales",
+          "title": "Upfront Austin Pricing — Zero High-Pressure Sales",
           "body": "Instant ballpark ranges powered by live local material & labor tables. Know whether it's a $540 boot repair or a storm claim in 60 seconds.",
           "metric": "$0 Drone + Thermal Check",
-          "frameRange": "FRAMES 055â€“094"
+          "frameRange": "FRAMES 055–094"
         },
         {
           "id": "callout-3",
@@ -123,7 +333,7 @@
           "title": "Instant SMS to Our Local Master Roofers",
           "body": "Skip the call center. Your photo, zip code, and project question open a live SMS thread directly with our Austin field dispatch + AI Co-Pilot.",
           "metric": "< 18 Sec Response Time",
-          "frameRange": "FRAMES 103â€“141"
+          "frameRange": "FRAMES 103–141"
         }
       ]
     },
@@ -132,10 +342,31 @@
       "companyName": "Precision Air & Mechanical",
       "niche": "HVAC & High-Efficiency Climate",
       "city": "Scottsdale, AZ",
+      "addressLine": "7340 E Shea Blvd, Scottsdale, AZ 85260",
       "brandColor": "#06b6d4",
       "accentSecondary": "#38bdf8",
       "phoneDisplay": "(480) 712-9900",
+      "emailDisplay": "service@precisionairaz.io",
+      "bookingUrl": "https://cal.com/tiberius/contractor",
       "googleReviewUrl": "https://g.page/r/precision-air-scottsdale/review",
+      "heroHeadline": "Same-Day Desert Cooling Rescue.",
+      "heroSubheadline": "Warm air blowing? Snap your condenser data plate or thermostat code—we arrive with the exact OEM part on the truck.",
+      "trustCredentials": [
+        { "metric": "94%", "label": "First-trip fix rate" },
+        { "metric": "24/7", "label": "Scottsdale dispatch" },
+        { "metric": "$89", "label": "Diagnostic (waived w/ repair)" },
+        { "metric": "20-SEER2", "label": "Inverter heat pump pros" }
+      ],
+      "media": {
+        "poster": "/assets/roofing/reveal-v1/poster.webp",
+        "video": "/assets/roofing/reveal-v3/scrub.mp4",
+        "detailImage": "/assets/roofing/reveal-v2/roof-detail.webp",
+        "helperAvatar": "/assets/roofing/helper-v1/avatar.webp",
+        "duration": 8,
+        "fps": 24,
+        "width": 1920,
+        "height": 1080
+      },
       "frameSequence": {
         "totalFrames": 150,
         "basePath": "/sequences/precision-hvac/frame_",
@@ -151,24 +382,30 @@
         "services": [
           {
             "name": "Capacitor / Contactor Emergency Swap",
-            "range": "$240 â€“ $420",
+            "category": "Fix a problem",
+            "description": "Immediate replacement of domed dual-run capacitors and pitted 24V contactors.",
+            "range": "$240 – $420",
             "avgValue": 330,
-            "urgency": "Critical â€” AC Down in Heat",
+            "urgency": "Critical — AC Down in Heat",
             "duration": "60 mins"
           },
           {
-            "name": "Refrigerant Leak Search & Subcool Charge",
-            "range": "$480 â€“ $920",
-            "avgValue": 690,
-            "urgency": "High â€” Warm Air Blowing",
-            "duration": "2 hrs"
-          },
-          {
             "name": "20-SEER2 Variable-Speed Inverter System",
-            "range": "$8,400 â€“ $13,200",
+            "category": "Plan a new system",
+            "description": "High-efficiency variable-speed heat pump installation with full duct static pressure balancing.",
+            "range": "$8,400 – $13,200",
             "avgValue": 10600,
             "urgency": "Scheduled Upgrade / Rebate Eligible",
             "duration": "1 day"
+          },
+          {
+            "name": "Refrigerant Leak Search & Subcool Charge",
+            "category": "Supporting system",
+            "description": "Electronic nitrogen/ultrasonic coil leak isolation and factory subcool weigh-in.",
+            "range": "$480 – $920",
+            "avgValue": 690,
+            "urgency": "High — Warm Air Blowing",
+            "duration": "2 hrs"
           }
         ],
         "aiPromptRules": "Waive the $89 diagnostic fee with any completed repair. Ask customer to snap a photo of the condenser data plate or thermostat error code for instant part verification on the truck."
@@ -183,7 +420,7 @@
           "title": "Snap Your Thermostat or Condenser Nameplate",
           "body": "Our Vision AI reads serial numbers, tonnage, and error codes automatically so our tech arrives in Scottsdale with the exact OEM part on the truck.",
           "metric": "First-Trip Fix: 94%",
-          "frameRange": "FRAMES 009â€“046"
+          "frameRange": "FRAMES 009–046"
         },
         {
           "id": "callout-2",
@@ -194,7 +431,7 @@
           "title": "$89 Diagnostic (Waived With Repair)",
           "body": "No mystery markups. See upfront ranges for capacitors, blower motors, and SEER2 inverter replacements before booking your window.",
           "metric": "Same-Day Cooling Rescue",
-          "frameRange": "FRAMES 055â€“094"
+          "frameRange": "FRAMES 055–094"
         },
         {
           "id": "callout-3",
@@ -205,7 +442,7 @@
           "title": "Text Directly With Lead Master Technicians",
           "body": "Get real-time SMS diagnostics, photo verification, and one-click arrival slot booking without waiting on hold.",
           "metric": "24/7 Desert Dispatch",
-          "frameRange": "FRAMES 103â€“141"
+          "frameRange": "FRAMES 103–141"
         }
       ]
     },
@@ -214,10 +451,31 @@
       "companyName": "Vanguard Decks & Hardscapes",
       "niche": "Custom Composite Decks & Outdoor Living",
       "city": "Nashville, TN",
+      "addressLine": "1208 Demonbreun St, Nashville, TN 37203",
       "brandColor": "#10b981",
       "accentSecondary": "#34d399",
       "phoneDisplay": "(615) 402-8810",
+      "emailDisplay": "builds@vanguardnashville.io",
+      "bookingUrl": "https://cal.com/tiberius/contractor",
       "googleReviewUrl": "https://g.page/r/vanguard-decks-nashville/review",
+      "heroHeadline": "Engineered Outdoor Living.",
+      "heroSubheadline": "From ledger board reinforcement to multi-tier composite decks. Scroll our structural cantilever rig or upload a backyard photo.",
+      "trustCredentials": [
+        { "metric": "210+", "label": "Nashville custom decks" },
+        { "metric": "25-Yr", "label": "Structural warranty" },
+        { "metric": "IRC Code", "label": "Engineered footings" },
+        { "metric": "$0", "label": "3D design & site consult" }
+      ],
+      "media": {
+        "poster": "/assets/roofing/reveal-v1/poster.webp",
+        "video": "/assets/roofing/reveal-v3/scrub.mp4",
+        "detailImage": "/assets/roofing/reveal-v2/roof-detail.webp",
+        "helperAvatar": "/assets/roofing/helper-v1/avatar.webp",
+        "duration": 8,
+        "fps": 24,
+        "width": 1920,
+        "height": 1080
+      },
       "frameSequence": {
         "totalFrames": 150,
         "basePath": "/sequences/vanguard-exteriors/frame_",
@@ -233,21 +491,27 @@
         "services": [
           {
             "name": "Ledger Board & Structural Joist Reinforcement",
-            "range": "$950 â€“ $1,850",
+            "category": "Fix a problem",
+            "description": "Structural lag/tension-tie ledger retrofits, footing stabilization, and rot replacement.",
+            "range": "$950 – $1,850",
             "avgValue": 1400,
-            "urgency": "High â€” Safety & Code Compliance",
+            "urgency": "High — Safety & Code Compliance",
             "duration": "1 day"
           },
           {
             "name": "Composite Resurfacing & Cable Railing Upgrade",
-            "range": "$6,800 â€“ $14,500",
+            "category": "Plan a new deck",
+            "description": "TimberTech/Trex composite deck boards with powder-coated aluminum and stainless cable rails.",
+            "range": "$6,800 – $14,500",
             "avgValue": 9800,
-            "urgency": "Medium â€” Spring/Summer Build",
-            "duration": "3â€“5 days"
+            "urgency": "Medium — Spring/Summer Build",
+            "duration": "3–5 days"
           },
           {
             "name": "Multi-Tier Outdoor Living + Louvered Pergola",
-            "range": "$18,500 â€“ $36,000",
+            "category": "Supporting system",
+            "description": "Custom covered outdoor kitchen, motorized louvered roof, and integrated low-voltage lighting.",
+            "range": "$18,500 – $36,000",
             "avgValue": 24500,
             "urgency": "Custom Architectural Scope",
             "duration": "2 weeks"
@@ -265,7 +529,7 @@
           "title": "Upload Your Backyard or Existing Deck Photo",
           "body": "Our Vision AI evaluates ledger attachment, footing grade, and square footage to generate an instant structural & material scope.",
           "metric": "IRC Code-Engineered",
-          "frameRange": "FRAMES 009â€“046"
+          "frameRange": "FRAMES 009–046"
         },
         {
           "id": "callout-2",
@@ -276,7 +540,7 @@
           "title": "Real Nashville Build Numbers Before We Visit",
           "body": "Compare TimberTech/Trex composite tiers, aluminum cable railings, and ledger repairs with transparent square-foot pricing.",
           "metric": "25-Year Structural Warranty",
-          "frameRange": "FRAMES 055â€“094"
+          "frameRange": "FRAMES 055–094"
         },
         {
           "id": "callout-3",
@@ -285,9 +549,9 @@
           "position": "top-left",
           "eyebrow": "03 // BUILDER-DIRECT SMS",
           "title": "From Backyard Photo to Scheduled Site Walk",
-          "body": "Start a unified thread with our Nashville project engineersâ€”complete with photo markups and instant calendar slots.",
+          "body": "Start a unified thread with our Nashville project engineers—complete with photo markups and instant calendar slots.",
           "metric": "Zero Subcontractor Markup",
-          "frameRange": "FRAMES 103â€“141"
+          "frameRange": "FRAMES 103–141"
         }
       ]
     }

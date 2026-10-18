@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import {
   Search,
   PhoneMissed,
@@ -10,15 +10,15 @@ import { usePlatform } from '../../context/usePlatform'
 
 const AI_STATUS_META = {
   qualifying: {
-    pillText: 'ðŸ¤– AI Qualifying',
+    pillText: '🤖 AI Qualifying',
     className: 'status-qualifying',
   },
   ready_for_quote: {
-    pillText: 'ðŸŸ¢ Ready for Quote',
+    pillText: '🟢 Ready for Quote',
     className: 'status-ready',
   },
   needs_human: {
-    pillText: 'ðŸš¨ Needs Human',
+    pillText: '🚨 Needs Human',
     className: 'status-human',
   },
 }
@@ -191,7 +191,7 @@ export default function ThreadQueue() {
                     thread.aiAutopilot ? 'on' : 'off'
                   }`}
                 >
-                  {thread.aiAutopilot ? 'ðŸ¤– Auto: ON' : 'âœ‹ Human Mode'}
+                  {thread.aiAutopilot ? '🤖 Auto: ON' : '✋ Human Mode'}
                 </span>
               </div>
 

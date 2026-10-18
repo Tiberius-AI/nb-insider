@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import {
   PhoneMissed,
   Star,
@@ -109,8 +109,8 @@ export default function WorkflowsLabView() {
               LIVE AUTO-SMS TEMPLATE ({activeTenant.phoneDisplay})
             </div>
             <p>
-              â€œHey {callerName.split(' ')[0] || 'there'}! Sorry we missed your call at{' '}
-              <strong>{activeTenant.companyName}</strong> ({activeTenant.city})â€”our crews are up on a job right now. How can we help today? Feel free to reply here or snap a photo of your project for an instant ballpark quote!â€
+              “Hey {callerName.split(' ')[0] || 'there'}! Sorry we missed your call at{' '}
+              <strong>{activeTenant.companyName}</strong> ({activeTenant.city})—our crews are up on a job right now. How can we help today? Feel free to reply here or snap a photo of your project for an instant ballpark quote!”
             </p>
           </div>
 
@@ -149,7 +149,7 @@ export default function WorkflowsLabView() {
               style={{ backgroundColor: activeTenant.brandColor }}
             >
               <PhoneMissed size={15} />
-              <span>ðŸ“ž Simulate Missed Call & Fire Rescue SMS</span>
+              <span>📞 Simulate Missed Call & Fire Rescue SMS</span>
             </button>
           </form>
         </div>
@@ -175,7 +175,7 @@ export default function WorkflowsLabView() {
           </div>
 
           <p className="wf-description">
-            Traditional â€œ1â€“5 star funnelâ€ web pages violate Google & FTC rules. Instead, we send a natural post-job SMS check-in and use <strong>AI Sentiment Analysis</strong> to either share your direct Google link or escalate issues to <code>ðŸš¨ Needs Human</code> privately.
+            Traditional “1–5 star funnel” web pages violate Google & FTC rules. Instead, we send a natural post-job SMS check-in and use <strong>AI Sentiment Analysis</strong> to either share your direct Google link or escalate issues to <code>🚨 Needs Human</code> privately.
           </p>
 
           {/* Select Target Customer Thread */}
@@ -189,7 +189,7 @@ export default function WorkflowsLabView() {
             >
               {threads.map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.contactName} ({t.phone}) â€” {t.jobSummary.serviceNeeded}
+                  {t.contactName} ({t.phone}) — {t.jobSummary.serviceNeeded}
                 </option>
               ))}
             </select>
@@ -198,12 +198,12 @@ export default function WorkflowsLabView() {
           {/* Step 1: Send Natural Check-in */}
           <div className="review-step-box">
             <div className="step-box-header">
-              <strong>Step 1: Trigger â€œJob Completedâ€ Natural Check-In</strong>
+              <strong>Step 1: Trigger “Job Completed” Natural Check-In</strong>
               <span className="step-badge">SMS Trigger</span>
             </div>
             <p className="step-quote">
-              â€œHi {selectedThread?.contactName.split(' ')[0]}! Thanks again for trusting{' '}
-              {activeTenant.companyName} today. How did everything go with the crew?â€
+              “Hi {selectedThread?.contactName.split(' ')[0]}! Thanks again for trusting{' '}
+              {activeTenant.companyName} today. How did everything go with the crew?”
             </p>
             <button
               type="button"
@@ -211,7 +211,7 @@ export default function WorkflowsLabView() {
               onClick={() => triggerJobCompletedCheckIn(selectedThread.id)}
             >
               <CheckCircle2 size={14} />
-              <span>Send â€œHow did everything go today?â€ Check-In SMS</span>
+              <span>Send “How did everything go today?” Check-In SMS</span>
             </button>
           </div>
 
@@ -247,7 +247,7 @@ export default function WorkflowsLabView() {
                 <AlertTriangle size={14} />
                 <div>
                   <strong>Simulate Negative / Issue Reply</strong>
-                  <span>Flips to ðŸš¨ Needs Human & pauses AI</span>
+                  <span>Flips to 🚨 Needs Human & pauses AI</span>
                 </div>
               </button>
             </div>

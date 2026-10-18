@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Sparkles,
   Mic,
@@ -9,6 +9,11 @@ import {
   Bot,
   Wand2,
   Star,
+  FileEdit,
+  Settings2,
+  Check,
+  X,
+  ZoomIn,
 } from 'lucide-react'
 import { usePlatform } from '../../context/usePlatform'
 
@@ -16,7 +21,13 @@ export default function UnifiedTimeline() {
   const {
     selectedThread,
     activeTenant,
-    toggleAutopilot,
+    setThreadHandoffMode,
+    approveAlfredDraft,
+    dismissAlfredDraft,
+    alfredSetup,
+    updateAlfredSetup,
+    alfredPresets,
+    setLightboxPhoto,
     sendHumanMessage,
     updateThreadStatus,
     generateCoPilotSuggestion,
@@ -27,6 +38,7 @@ export default function UnifiedTimeline() {
   const [composerText, setComposerText] = useState('')
   const [composerChannel, setComposerChannel] = useState('SMS')
   const [showVoiceModal, setShowVoiceModal] = useState(false)
+  const [showAlfredSetup, setShowAlfredSetup] = useState(false)
   const [rawVoiceText, setRawVoiceText] = useState(
     'tell him we looked at the flashing gap by the brick, we can seal and re-lead it tomorrow at 2pm for 580 bucks'
   )
@@ -39,6 +51,9 @@ export default function UnifiedTimeline() {
   }, [selectedThread?.id, selectedThread?.messages?.length])
 
   if (!selectedThread) return null
+
+  const currentHandoff =
+    selectedThread.handoffMode || (selectedThread.aiAutopilot ? 'AI' : 'Human')
 
   const handleSendHuman = (e) => {
     e.preventDefault()
@@ -58,9 +73,21 @@ export default function UnifiedTimeline() {
     setShowVoiceModal(false)
   }
 
+  const spentDollars = (alfredSetup.spentMicros / 1_000_000).toFixed(2)
+  const reservedDollars = (alfredSetup.reservedMicros / 1_000_000).toFixed(2)
+  const limitDollars = (alfredSetup.limitMicros / 1_000_000).toFixed(2)
+  const budgetPct = Math.min(
+    100,
+    Math.round(
+      ((alfredSetup.spentMicros + alfredSetup.reservedMicros) /
+        alfredSetup.limitMicros) *
+        100
+    )
+  )
+
   return (
     <main className="pane-center-timeline">
-      {/* Top Header with CRITICAL FEATURE: [ ðŸ¤– AI Autopilot: ON | âœ‹ Take Over ] */}
+      {/* Top Header with CRITICAL FEATURE: [ 🤖 AI Autopilot | 📝 Alfred Drafts | ✋ Take Over ] */}
       <div className="timeline-header">
         <div className="timeline-contact-info">
           <div className="timeline-contact-top">
@@ -74,17 +101,23 @@ export default function UnifiedTimeline() {
                 updateThreadStatus(selectedThread.id, e.target.value)
               }
             >
-              <option value="qualifying">ðŸ¤– AI Qualifying</option>
-              <option value="ready_for_quote">ðŸŸ¢ Ready for Quote</option>
-              <option value="needs_human">ðŸš¨ Needs Human</option>
+              <option value="qualifying">🤖 AI Qualifying</option>
+              <option value="ready_for_quote">🟢 Ready for Quote</option>
+              <option value="needs_human">🚨 Needs Human</option>
             </select>
           </div>
           <div className="timeline-contact-sub">
             <span>{selectedThread.address}</span>
+            {selectedThread.propertyType && (
+              <span>
+                {' '}
+                • {selectedThread.propertyType} ({selectedThread.roofAge || 'Age TBD'})
+              </span>
+            )}
           </div>
         </div>
 
-        {/* CRITICAL FEATURE: Top Header Toggle [ ðŸ¤– AI Autopilot: ON | âœ‹ Take Over ] */}
+        {/* CRITICAL FEATURE: 3-Mode Handoff Toggle (Blueprint Autopilot ON/OFF + Tiberius Draft Mode) */}
         <div className="autopilot-control-group">
           <div
             className={`autopilot-segmented-toggle ${
@@ -93,21 +126,50 @@ export default function UnifiedTimeline() {
           >
             <button
               type="button"
-              className={`seg-btn ${selectedThread.aiAutopilot ? 'active-on' : ''}`}
-              onClick={() => toggleAutopilot(selectedThread.id, true)}
+              className={`seg-btn ${currentHandoff === 'AI' ? 'active-on' : ''}`}
+              onClick={() => setThreadHandoffMode(selectedThread.id, 'AI')}
+              title="Alfred replies automatically using contractor rules"
             >
               <Bot size={14} />
-              <span>ðŸ¤– AI Autopilot: {selectedThread.aiAutopilot ? 'ON' : 'OFF'}</span>
+              <span>
+                🤖 AI Autopilot: {currentHandoff === 'AI' ? 'ON' : 'Auto'}
+              </span>
             </button>
+
             <button
               type="button"
-              className={`seg-btn ${!selectedThread.aiAutopilot ? 'active-takeover' : ''}`}
-              onClick={() => toggleAutopilot(selectedThread.id, false)}
+              className={`seg-btn ${
+                currentHandoff === 'Draft' ? 'active-draft' : ''
+              }`}
+              onClick={() => setThreadHandoffMode(selectedThread.id, 'Draft')}
+              title="Alfred drafts a private reply for you to approve before sending"
+            >
+              <FileEdit size={13} />
+              <span>📝 Alfred Drafts</span>
+            </button>
+
+            <button
+              type="button"
+              className={`seg-btn ${
+                currentHandoff === 'Human' ? 'active-takeover' : ''
+              }`}
+              onClick={() => setThreadHandoffMode(selectedThread.id, 'Human')}
+              title="Pause AI Autopilot and handle this conversation yourself"
             >
               <Hand size={14} />
-              <span>âœ‹ Take Over</span>
+              <span>✋ Take Over</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            className="btn-job-complete-trigger"
+            onClick={() => setShowAlfredSetup((prev) => !prev)}
+            title="Configure 'Make Alfred Your Own' presets & AI budget"
+          >
+            <Settings2 size={13} />
+            <span>Alfred Setup</span>
+          </button>
 
           <button
             type="button"
@@ -116,28 +178,108 @@ export default function UnifiedTimeline() {
             title="Trigger TOS-Safe Job Completed Review Check-In SMS"
           >
             <Star size={13} />
-            <span>Job Completed Check-In</span>
+            <span>Job Completed</span>
           </button>
         </div>
       </div>
 
-      {/* Autopilot Guardrail Status Banner */}
+      {/* Tiberius "Make Alfred Your Own" 4-Preset Setup Drawer + AI Budget Meter (Recreated from owner-setup.mjs) */}
+      {showAlfredSetup && (
+        <div className="alfred-setup-drawer glass-panel">
+          <div className="alfred-setup-header">
+            <div>
+              <span
+                className="section-tag"
+                style={{ color: activeTenant.brandColor }}
+              >
+                MAKE ALFRED YOUR OWN // DEFAULT CO-PILOT BEHAVIOR
+              </span>
+              <h4>How should Alfred handle new homeowner inquiries?</h4>
+            </div>
+            <div className="alfred-budget-pill">
+              <span>
+                AI Budget: <strong>${spentDollars}</strong> used • ${reservedDollars}{' '}
+                reserved / ${limitDollars}
+              </span>
+              <div className="budget-bar-track">
+                <div
+                  className="budget-bar-fill"
+                  style={{
+                    width: `${budgetPct}%`,
+                    backgroundColor: activeTenant.brandColor,
+                  }}
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              className="icon-close-btn"
+              onClick={() => setShowAlfredSetup(false)}
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          <div className="alfred-presets-grid">
+            {alfredPresets.map((preset) => {
+              const isSelected = alfredSetup.preset === preset.id
+              return (
+                <label
+                  key={preset.id}
+                  className={`alfred-preset-card ${isSelected ? 'selected' : ''}`}
+                  style={
+                    isSelected
+                      ? { borderColor: activeTenant.brandColor }
+                      : undefined
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="alfredPreset"
+                    checked={isSelected}
+                    onChange={() => updateAlfredSetup(preset.id)}
+                  />
+                  <div>
+                    <div className="preset-title-row">
+                      <strong>{preset.label}</strong>
+                      <span className="preset-mode-tag">
+                        {preset.defaultHandoff}
+                      </span>
+                    </div>
+                    <p>{preset.description}</p>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Autopilot / Handoff Guardrail Status Banner */}
       <div
         className={`autopilot-guardrail-bar ${
           selectedThread.aiAutopilot ? 'bar-on' : 'bar-off'
         }`}
       >
-        {selectedThread.aiAutopilot ? (
+        {currentHandoff === 'AI' && (
           <span>
-            <strong>ðŸ¤– AI Autopilot Active:</strong> Qualifying & quoting via{' '}
-            <code>{activeTenant.companyName}</code> rules.{' '}
+            <strong>🤖 AI Autopilot Active (“Alfred replies”):</strong> Qualifying &
+            quoting via <code>{activeTenant.companyName}</code> rules.{' '}
             <em>
-              (Typing & sending a manual message below will automatically flip Autopilot to OFF.)
+              (Typing & sending a manual message below automatically flips to ✋ Human Takeover.)
             </em>
           </span>
-        ) : (
+        )}
+        {currentHandoff === 'Draft' && (
           <span>
-            <strong>âœ‹ Human-in-the-Loop Active (Autopilot OFF):</strong> AI is silenced on this thread so you and the AI never talk over each other.
+            <strong>📝 AI Draft-First Active (“Alfred drafts”):</strong> Alfred
+            prepares private replies below and waits for your approval before texting the customer.
+          </span>
+        )}
+        {currentHandoff === 'Human' && (
+          <span>
+            <strong>✋ Human-in-the-Loop Active (Autopilot OFF):</strong> Alfred is
+            paused on this thread so you and the AI never talk over each other.
           </span>
         )}
       </div>
@@ -184,10 +326,10 @@ export default function UnifiedTimeline() {
                 <div className="bubble-meta-top">
                   <span className="sender-badge">
                     {isCustomer
-                      ? `ðŸ‘¤ ${selectedThread.contactName}`
+                      ? `👤 ${selectedThread.contactName}`
                       : isAI
-                      ? `ðŸ¤– ${activeTenant.companyName} AI`
-                      : `ðŸ‘·â€â™‚ï¸ Human Operator (${activeTenant.companyName})`}
+                      ? `🤖 Alfred · ${activeTenant.companyName} AI`
+                      : `👷‍♂️ Human Operator (${activeTenant.companyName})`}
                   </span>
                   <span className="channel-pill-mini">{msg.channel}</span>
                   <span className="msg-time">{msg.timestamp}</span>
@@ -238,16 +380,32 @@ export default function UnifiedTimeline() {
                   </div>
                 )}
 
-                {/* Uploaded Customer Damage Photo (if present) */}
+                {/* Uploaded Customer Damage Photo — Clickable for Lightbox (from conversation-photos.mjs) */}
                 {msg.photoUrl && (
-                  <div className="timeline-photo-attachment">
-                    <img src={msg.photoUrl} alt={msg.photoCaption || 'Customer upload'} />
-                    {msg.photoCaption && (
-                      <div className="photo-caption-bar">
-                        <Sparkles size={12} style={{ color: activeTenant.brandColor }} />
-                        <span>{msg.photoCaption}</span>
-                      </div>
-                    )}
+                  <div
+                    className="timeline-photo-attachment clickable-photo"
+                    onClick={() =>
+                      setLightboxPhoto({
+                        url: msg.photoUrl,
+                        caption:
+                          msg.photoCaption ||
+                          `${selectedThread.contactName} Project Photo`,
+                      })
+                    }
+                    title="Click to enlarge photo in inspection lightbox"
+                  >
+                    <img
+                      src={msg.photoUrl}
+                      alt={msg.photoCaption || 'Customer upload'}
+                    />
+                    <div className="photo-caption-bar">
+                      <Sparkles
+                        size={12}
+                        style={{ color: activeTenant.brandColor }}
+                      />
+                      <span>{msg.photoCaption || 'Customer Inspection Photo'}</span>
+                      <ZoomIn size={12} className="photo-zoom-icon" />
+                    </div>
                   </div>
                 )}
 
@@ -259,13 +417,57 @@ export default function UnifiedTimeline() {
         <div ref={timelineEndRef} />
       </div>
 
+      {/* Tiberius Private Alfred Draft Approval Box (#alfred-draft from owner.mjs) */}
+      {selectedThread.alfredDraft && (
+        <div className="alfred-private-draft-card glass-panel">
+          <div className="alfred-draft-top">
+            <div className="alfred-draft-badge">
+              <Sparkles size={13} style={{ color: activeTenant.brandColor }} />
+              <strong>ALFRED PRIVATE DRAFT (AWAITING OWNER APPROVAL)</strong>
+              <span>• {selectedThread.alfredDraft.createdAt}</span>
+            </div>
+            <span className="alfred-draft-reason">
+              {selectedThread.alfredDraft.reason}
+            </span>
+          </div>
+          <p className="alfred-draft-body">“{selectedThread.alfredDraft.text}”</p>
+          <div className="alfred-draft-actions">
+            <button
+              type="button"
+              className="btn-xs-primary"
+              style={{ backgroundColor: activeTenant.brandColor }}
+              onClick={() => approveAlfredDraft(selectedThread.id)}
+            >
+              <Check size={13} /> Approve & Send to Homeowner
+            </button>
+            <button
+              type="button"
+              className="btn-xs-outline"
+              onClick={() => {
+                setComposerText(selectedThread.alfredDraft.text)
+                dismissAlfredDraft(selectedThread.id)
+              }}
+            >
+              <FileEdit size={13} /> Edit in Composer
+            </button>
+            <button
+              type="button"
+              className="btn-xs-outline"
+              onClick={() => dismissAlfredDraft(selectedThread.id)}
+            >
+              <X size={13} /> Dismiss Draft
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Field Voice-Note-to-Polished-SMS Drawer */}
       {showVoiceModal && (
         <div className="voice-whisper-drawer glass-panel">
           <div className="voice-drawer-top">
             <div className="voice-title">
               <Mic size={15} style={{ color: activeTenant.brandColor }} />
-              <strong>Field Voice-Note â†’ Polished Client SMS</strong>
+              <strong>Field Voice-Note → Polished Client SMS</strong>
             </div>
             <span className="voice-hint">
               Speak or type rough field notes from the truck/roof:
@@ -307,7 +509,7 @@ export default function UnifiedTimeline() {
               onClick={handleSuggestReply}
             >
               <Sparkles size={14} style={{ color: activeTenant.brandColor }} />
-              <span>âœ¨ Suggest Reply (Co-Pilot Whisper)</span>
+              <span>✨ Suggest Reply (Co-Pilot Whisper)</span>
             </button>
 
             <button
@@ -316,7 +518,7 @@ export default function UnifiedTimeline() {
               onClick={() => setShowVoiceModal((prev) => !prev)}
             >
               <Mic size={14} />
-              <span>ðŸŽ™ï¸ Voice-Note to Polished SMS</span>
+              <span>🎙️ Voice-Note to Polished SMS</span>
             </button>
           </div>
 
@@ -339,7 +541,7 @@ export default function UnifiedTimeline() {
             rows={2}
             placeholder={
               selectedThread.aiAutopilot
-                ? 'Type a human reply (sending automatically flips ðŸ¤– AI Autopilot to OFF)...'
+                ? 'Type a human reply (sending automatically flips 🤖 AI Autopilot to OFF)...'
                 : 'Type your reply to the homeowner...'
             }
             value={composerText}
@@ -358,9 +560,7 @@ export default function UnifiedTimeline() {
           >
             <Send size={15} />
             <span>
-              {selectedThread.aiAutopilot
-                ? 'Send & Pause AI'
-                : 'Send Reply'}
+              {selectedThread.aiAutopilot ? 'Send & Pause AI' : 'Send Reply'}
             </span>
           </button>
         </div>

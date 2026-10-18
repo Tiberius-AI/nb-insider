@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import {
   Sparkles,
   MessageSquare,
@@ -80,7 +80,7 @@ export default function PlatformTopBar() {
                 HIGGSFIELD <span className="text-muted">//</span> CONTRACTOR AI OS
               </div>
               <div className="platform-subtitle">
-                Proprietary GHL-Replacement Engine â€¢{' '}
+                Proprietary GHL-Replacement Engine •{' '}
                 <strong style={{ color: activeTenant.brandColor }}>
                   {activePlan.name.split(' ')[0]} ({activePlan.priceRange})
                 </strong>
@@ -137,7 +137,7 @@ export default function PlatformTopBar() {
             )}
             {needsHumanCount > 0 && (
               <span className="nav-badge human" title="Threads needing human intervention">
-                ðŸš¨ {needsHumanCount}
+                🚨 {needsHumanCount}
               </span>
             )}
           </button>
@@ -251,7 +251,7 @@ export default function PlatformTopBar() {
                         </div>
                         <ul className="tier-highlights">
                           {plan.highlights.map((item, i) => (
-                            <li key={i}>âœ“ {item}</li>
+                            <li key={i}>✓ {item}</li>
                           ))}
                         </ul>
                       </div>

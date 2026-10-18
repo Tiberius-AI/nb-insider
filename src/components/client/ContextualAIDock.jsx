@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Camera,
   Send,
@@ -9,8 +9,10 @@ import {
   X,
   ArrowUpRight,
   MapPin,
+  FileText,
 } from 'lucide-react'
 import { usePlatform } from '../../context/usePlatform'
+import { optimizeUploadedPhotos } from '../../utils/photoOptimizer'
 
 export default function ContextualAIDock() {
   const {
@@ -18,6 +20,7 @@ export default function ContextualAIDock() {
     submitHeroLead,
     samplePhotos,
     setActiveView,
+    openHelperModal,
   } = usePlatform()
 
   const [question, setQuestion] = useState('')
@@ -29,25 +32,28 @@ export default function ContextualAIDock() {
 
   const fileInputRef = useRef(null)
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
+  const handleFileUpload = async (e) => {
+    const files = e.target.files
+    if (!files?.length) return
+    try {
+      const optimized = await optimizeUploadedPhotos(files, 3)
+      const first = optimized[0]
+      if (!first) return
       const primarySvc = activeTenant.pricingRules.services[0]
       setSelectedPhoto({
         id: `upload-${Date.now()}`,
-        label: file.name,
+        label: `${first.name} (${first.width}×${first.height} JPEG)`,
         serviceMatch: primarySvc.name,
         estimatedRange: primarySvc.range,
         estimatedValue: primarySvc.avgValue,
         urgency: primarySvc.urgency,
-        visionSummary: `Vision AI analyzed "${file.name}": matched ${primarySvc.name} (${primarySvc.range} in ${activeTenant.city}).`,
-        url: reader.result,
+        visionSummary: `Vision AI analyzed "${first.name}" (resized via createImageBitmap to ${first.width}×${first.height}): matched ${primarySvc.name} (${primarySvc.range} in ${activeTenant.city}).`,
+        url: first.dataUrl,
       })
       setShowSamplePicker(false)
+    } catch {
+      // ignore invalid file
     }
-    reader.readAsDataURL(file)
   }
 
   const handleSubmit = (e) => {
@@ -55,17 +61,20 @@ export default function ContextualAIDock() {
     submitHeroLead({
       question,
       photo: selectedPhoto,
-      phone: phone || '(512) 639-1842',
+      phone: phone || activeTenant.phoneDisplay || '(603) 639-1842',
       customerName: 'Alex Mercer',
-      zipCode: zipCode || '78704',
+      zipCode: zipCode || '03106',
+      sourceLabel: 'Embedded Hero AI Dock',
     })
     setHandshakeSuccess(true)
   }
 
-  const quickPrompts = activeTenant.pricingRules.services.slice(0, 3).map((s) => ({
-    label: s.name.split(' ').slice(0, 3).join(' '),
-    prompt: `Need a ballpark quote for ${s.name.toLowerCase()} in ${activeTenant.city}.`,
-  }))
+  const quickPrompts = activeTenant.pricingRules.services
+    .slice(0, 3)
+    .map((s) => ({
+      label: s.name.split(' ').slice(0, 3).join(' '),
+      prompt: `Need a ballpark quote for ${s.name.toLowerCase()} in ${activeTenant.city}.`,
+    }))
 
   return (
     <div className="contextual-ai-dock-wrapper">
@@ -90,7 +99,7 @@ export default function ContextualAIDock() {
                   <strong style={{ color: activeTenant.brandColor }}>
                     {selectedPhoto.estimatedRange}
                   </strong>{' '}
-                  â€¢ {selectedPhoto.urgency}
+                  • {selectedPhoto.urgency}
                 </div>
               </div>
               <button
@@ -106,7 +115,8 @@ export default function ContextualAIDock() {
             <div className="sample-picker-body">
               <div className="sample-picker-header">
                 <span>
-                  <Camera size={14} /> Upload a photo from your device or test with a sample Vision AI inspection frame:
+                  <Camera size={14} /> Upload a photo (auto-resized via{' '}
+                  <code>createImageBitmap</code>) or test with a sample Vision AI inspection frame:
                 </span>
                 <button
                   type="button"
@@ -153,7 +163,7 @@ export default function ContextualAIDock() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           style={{ display: 'none' }}
           onChange={handleFileUpload}
         />
@@ -165,7 +175,7 @@ export default function ContextualAIDock() {
               style={{ backgroundColor: activeTenant.brandColor }}
             />
             <span>
-              <strong>{activeTenant.companyName} AI + Field Dispatch</strong> â€¢ Instant{' '}
+              <strong>Alfred AI + {activeTenant.companyName} Dispatch</strong> • Instant{' '}
               {activeTenant.city} Price & Vision Analysis
             </span>
           </div>
@@ -181,6 +191,14 @@ export default function ContextualAIDock() {
                 {qp.label}
               </button>
             ))}
+            <button
+              type="button"
+              className="dock-chip dock-chip-wizard"
+              onClick={() => openHelperModal('quote')}
+              title="Open 3-Step Guided Quote Request Wizard"
+            >
+              <FileText size={11} /> 3-Step Wizard ↗
+            </button>
           </div>
         </div>
 
@@ -214,7 +232,7 @@ export default function ContextualAIDock() {
           >
             <Camera size={16} />
             <span>
-              {selectedPhoto ? 'ðŸ“· Photo Attached' : 'ðŸ“· Snap / Upload Photo'}
+              {selectedPhoto ? '📷 Photo Attached' : '📷 Snap / Upload Photo'}
             </span>
           </button>
 
@@ -224,7 +242,7 @@ export default function ContextualAIDock() {
             <input
               type="text"
               className="dock-text-input"
-              placeholder="Zip (78704)"
+              placeholder="ZIP (03106)"
               value={zipCode}
               onChange={(e) => setZipCode(e.target.value)}
               maxLength={10}

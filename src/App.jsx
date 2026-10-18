@@ -1,4 +1,4 @@
-﻿import { PlatformProvider } from './context/PlatformContext'
+import { PlatformProvider } from './context/PlatformContext'
 import { usePlatform } from './context/usePlatform'
 import PlatformTopBar from './components/layout/PlatformTopBar'
 import ClientWebsiteView from './components/client/ClientWebsiteView'
