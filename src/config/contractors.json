@@ -1,0 +1,295 @@
+﻿{
+  "platformPlans": [
+    {
+      "id": "rent",
+      "name": "Rent (Managed AI + Scrollytelling)",
+      "priceRange": "$297â€“$397/mo",
+      "badge": "Fastest Launch",
+      "highlights": [
+        "Turnkey Higgsfield 150-Frame Scrollytelling Site",
+        "Embedded Contextual AI Dock + Vision Damage Pre-Scan",
+        "3-Pane Unified Conversation Room + Missed-Call Rescue",
+        "TOS-Safe Conversational Review Engine"
+      ]
+    },
+    {
+      "id": "rent-to-own",
+      "name": "Rent-to-Own (Equity Builder)",
+      "priceRange": "$497â€“$597/mo",
+      "badge": "Most Popular",
+      "highlights": [
+        "Everything in Rent + 100% Ownership After 12 Months",
+        "Custom Higgsfield Camera Orbit Shoot & FFmpeg Pipeline",
+        "Custom Contractor Pricing Rules & Voice-to-SMS Co-Pilot",
+        "Dedicated Local Number & CRM/Calendar Sync"
+      ]
+    },
+    {
+      "id": "buy-outright",
+      "name": "Buy Outright (Full Source + IP)",
+      "priceRange": "$2,500+",
+      "badge": "Zero Monthly Lease",
+      "highlights": [
+        "Immediate 100% Code, Domain & Custom Asset Ownership",
+        "Multi-Crew Routing & Custom LLM Extraction Schema",
+        "Self-Hosted or Managed API Pass-Through",
+        "Lifetime Updates to Scrollytelling & Back-Office Engine"
+      ]
+    }
+  ],
+  "tenants": [
+    {
+      "id": "apex-roofing",
+      "companyName": "Apex Roofing & Storm",
+      "niche": "Roofing & Storm Restoration",
+      "city": "Austin, TX",
+      "brandColor": "#f97316",
+      "accentSecondary": "#fbbf24",
+      "phoneDisplay": "(512) 890-4420",
+      "googleReviewUrl": "https://g.page/r/apex-roofing-austin/review",
+      "frameSequence": {
+        "totalFrames": 150,
+        "basePath": "/sequences/apex-roofing/frame_",
+        "extension": ".webp",
+        "wireframeModel": "roof-truss-orbit",
+        "cameraLabel": "HIGGSFIELD ORBIT // 35MM ANAMORPHIC // 360Â° RIDGE & FLASHING RIG"
+      },
+      "pricingRules": {
+        "currency": "USD",
+        "freeInspection": true,
+        "baseDiagnostic": 0,
+        "minimumDispatch": 295,
+        "services": [
+          {
+            "name": "Chimney & Step-Flashing Leak Repair",
+            "range": "$450 â€“ $850",
+            "avgValue": 650,
+            "urgency": "High â€” Active Water Intrusion",
+            "duration": "2â€“3 hrs"
+          },
+          {
+            "name": "Ridge Vent & Pipe Boot Replacement",
+            "range": "$380 â€“ $720",
+            "avgValue": 540,
+            "urgency": "Medium â€” Preventative Seal",
+            "duration": "2 hrs"
+          },
+          {
+            "name": "Emergency Storm Tarping & Dry-In",
+            "range": "$295 â€“ $550",
+            "avgValue": 420,
+            "urgency": "Critical â€” Same-Day Dispatch",
+            "duration": "90 mins"
+          },
+          {
+            "name": "Full Class-4 Impact Shingle Replacement",
+            "range": "$11,500 â€“ $19,800",
+            "avgValue": 14800,
+            "urgency": "Insurance / Scheduled Scope",
+            "duration": "1â€“2 days"
+          }
+        ],
+        "aiPromptRules": "Always offer free drone + thermal moisture inspection in Austin metro. Quote flashing/boot repairs between $380-$850 and never promise exact insurance coverage before physical deck check."
+      },
+      "callouts": [
+        {
+          "id": "callout-1",
+          "startProgress": 0.06,
+          "endProgress": 0.31,
+          "position": "top-left",
+          "eyebrow": "01 // VISION AI TELEMETRY",
+          "title": "Pinpoint Hail, Lifted Shingles & Flashing Gaps",
+          "body": "Snap a photo from your driveway. Our Vision AI highlights granule loss, compromised step-flashing, and ridge wear before a truck even rolls.",
+          "metric": "98.4% Scope Accuracy",
+          "frameRange": "FRAMES 009â€“046"
+        },
+        {
+          "id": "callout-2",
+          "startProgress": 0.37,
+          "endProgress": 0.63,
+          "position": "top-right",
+          "eyebrow": "02 // ALGORITHMIC PRICE LOCK",
+          "title": "Upfront Austin Pricing â€” Zero High-Pressure Sales",
+          "body": "Instant ballpark ranges powered by live local material & labor tables. Know whether it's a $540 boot repair or a storm claim in 60 seconds.",
+          "metric": "$0 Drone + Thermal Check",
+          "frameRange": "FRAMES 055â€“094"
+        },
+        {
+          "id": "callout-3",
+          "startProgress": 0.69,
+          "endProgress": 0.94,
+          "position": "top-left",
+          "eyebrow": "03 // DIRECT CREW HANDSHAKE",
+          "title": "Instant SMS to Our Local Master Roofers",
+          "body": "Skip the call center. Your photo, zip code, and project question open a live SMS thread directly with our Austin field dispatch + AI Co-Pilot.",
+          "metric": "< 18 Sec Response Time",
+          "frameRange": "FRAMES 103â€“141"
+        }
+      ]
+    },
+    {
+      "id": "precision-hvac",
+      "companyName": "Precision Air & Mechanical",
+      "niche": "HVAC & High-Efficiency Climate",
+      "city": "Scottsdale, AZ",
+      "brandColor": "#06b6d4",
+      "accentSecondary": "#38bdf8",
+      "phoneDisplay": "(480) 712-9900",
+      "googleReviewUrl": "https://g.page/r/precision-air-scottsdale/review",
+      "frameSequence": {
+        "totalFrames": 150,
+        "basePath": "/sequences/precision-hvac/frame_",
+        "extension": ".webp",
+        "wireframeModel": "hvac-condenser-orbit",
+        "cameraLabel": "HIGGSFIELD ORBIT // MACRO THERMODYNAMIC RIG // 150-FRAME .WEBP"
+      },
+      "pricingRules": {
+        "currency": "USD",
+        "freeInspection": false,
+        "baseDiagnostic": 89,
+        "minimumDispatch": 89,
+        "services": [
+          {
+            "name": "Capacitor / Contactor Emergency Swap",
+            "range": "$240 â€“ $420",
+            "avgValue": 330,
+            "urgency": "Critical â€” AC Down in Heat",
+            "duration": "60 mins"
+          },
+          {
+            "name": "Refrigerant Leak Search & Subcool Charge",
+            "range": "$480 â€“ $920",
+            "avgValue": 690,
+            "urgency": "High â€” Warm Air Blowing",
+            "duration": "2 hrs"
+          },
+          {
+            "name": "20-SEER2 Variable-Speed Inverter System",
+            "range": "$8,400 â€“ $13,200",
+            "avgValue": 10600,
+            "urgency": "Scheduled Upgrade / Rebate Eligible",
+            "duration": "1 day"
+          }
+        ],
+        "aiPromptRules": "Waive the $89 diagnostic fee with any completed repair. Ask customer to snap a photo of the condenser data plate or thermostat error code for instant part verification on the truck."
+      },
+      "callouts": [
+        {
+          "id": "callout-1",
+          "startProgress": 0.06,
+          "endProgress": 0.31,
+          "position": "top-left",
+          "eyebrow": "01 // DATA PLATE & ERROR SCAN",
+          "title": "Snap Your Thermostat or Condenser Nameplate",
+          "body": "Our Vision AI reads serial numbers, tonnage, and error codes automatically so our tech arrives in Scottsdale with the exact OEM part on the truck.",
+          "metric": "First-Trip Fix: 94%",
+          "frameRange": "FRAMES 009â€“046"
+        },
+        {
+          "id": "callout-2",
+          "startProgress": 0.37,
+          "endProgress": 0.63,
+          "position": "top-right",
+          "eyebrow": "02 // FLAT-RATE TRANSPARENCY",
+          "title": "$89 Diagnostic (Waived With Repair)",
+          "body": "No mystery markups. See upfront ranges for capacitors, blower motors, and SEER2 inverter replacements before booking your window.",
+          "metric": "Same-Day Cooling Rescue",
+          "frameRange": "FRAMES 055â€“094"
+        },
+        {
+          "id": "callout-3",
+          "startProgress": 0.69,
+          "endProgress": 0.94,
+          "position": "top-left",
+          "eyebrow": "03 // LIVE DISPATCH TIMELINE",
+          "title": "Text Directly With Lead Master Technicians",
+          "body": "Get real-time SMS diagnostics, photo verification, and one-click arrival slot booking without waiting on hold.",
+          "metric": "24/7 Desert Dispatch",
+          "frameRange": "FRAMES 103â€“141"
+        }
+      ]
+    },
+    {
+      "id": "vanguard-exteriors",
+      "companyName": "Vanguard Decks & Hardscapes",
+      "niche": "Custom Composite Decks & Outdoor Living",
+      "city": "Nashville, TN",
+      "brandColor": "#10b981",
+      "accentSecondary": "#34d399",
+      "phoneDisplay": "(615) 402-8810",
+      "googleReviewUrl": "https://g.page/r/vanguard-decks-nashville/review",
+      "frameSequence": {
+        "totalFrames": 150,
+        "basePath": "/sequences/vanguard-exteriors/frame_",
+        "extension": ".webp",
+        "wireframeModel": "deck-structural-orbit",
+        "cameraLabel": "HIGGSFIELD ORBIT // ARCHITECTURAL CANTILEVER // 150-FRAME .WEBP"
+      },
+      "pricingRules": {
+        "currency": "USD",
+        "freeInspection": true,
+        "baseDiagnostic": 0,
+        "minimumDispatch": 450,
+        "services": [
+          {
+            "name": "Ledger Board & Structural Joist Reinforcement",
+            "range": "$950 â€“ $1,850",
+            "avgValue": 1400,
+            "urgency": "High â€” Safety & Code Compliance",
+            "duration": "1 day"
+          },
+          {
+            "name": "Composite Resurfacing & Cable Railing Upgrade",
+            "range": "$6,800 â€“ $14,500",
+            "avgValue": 9800,
+            "urgency": "Medium â€” Spring/Summer Build",
+            "duration": "3â€“5 days"
+          },
+          {
+            "name": "Multi-Tier Outdoor Living + Louvered Pergola",
+            "range": "$18,500 â€“ $36,000",
+            "avgValue": 24500,
+            "urgency": "Custom Architectural Scope",
+            "duration": "2 weeks"
+          }
+        ],
+        "aiPromptRules": "Offer complimentary 3D structural & material consult in Greater Nashville. Estimate composite deck resurfacing at $65-$95/sq ft and prioritize safety if ledger separation is visible."
+      },
+      "callouts": [
+        {
+          "id": "callout-1",
+          "startProgress": 0.06,
+          "endProgress": 0.31,
+          "position": "top-left",
+          "eyebrow": "01 // STRUCTURAL & SPAN ANALYSIS",
+          "title": "Upload Your Backyard or Existing Deck Photo",
+          "body": "Our Vision AI evaluates ledger attachment, footing grade, and square footage to generate an instant structural & material scope.",
+          "metric": "IRC Code-Engineered",
+          "frameRange": "FRAMES 009â€“046"
+        },
+        {
+          "id": "callout-2",
+          "startProgress": 0.37,
+          "endProgress": 0.63,
+          "position": "top-right",
+          "eyebrow": "02 // INSTANT SQ-FT ESTIMATOR",
+          "title": "Real Nashville Build Numbers Before We Visit",
+          "body": "Compare TimberTech/Trex composite tiers, aluminum cable railings, and ledger repairs with transparent square-foot pricing.",
+          "metric": "25-Year Structural Warranty",
+          "frameRange": "FRAMES 055â€“094"
+        },
+        {
+          "id": "callout-3",
+          "startProgress": 0.69,
+          "endProgress": 0.94,
+          "position": "top-left",
+          "eyebrow": "03 // BUILDER-DIRECT SMS",
+          "title": "From Backyard Photo to Scheduled Site Walk",
+          "body": "Start a unified thread with our Nashville project engineersâ€”complete with photo markups and instant calendar slots.",
+          "metric": "Zero Subcontractor Markup",
+          "frameRange": "FRAMES 103â€“141"
+        }
+      ]
+    }
+  ]
+}
