@@ -1,30 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import {
-  Sparkles,
-  ShieldCheck,
-  Clock,
-  Terminal,
-  Upload,
-  CheckCircle2,
-  ArrowDown,
-  PhoneCall,
-  Film,
-  Layers,
-  Box,
-  Pause,
-  Play,
-  MessageSquare,
-  FileText,
-  Calendar,
-  ArrowUpRight,
-  Wrench,
-  Home,
-  MapPin,
-  Quote,
-  HelpCircle,
-} from 'lucide-react'
 import { usePlatform } from '../../context/usePlatform'
 import { renderScrubFrame } from '../../utils/wireframeOrbitRenderer'
 import ContextualAIDock from './ContextualAIDock'
@@ -34,40 +10,49 @@ gsap.registerPlugin(ScrollTrigger)
 
 const TOTAL_FRAMES = 150
 
-// Exact timeAt formula recovered via REA from Tiberius `packages/animation-engine/scroll-video.mjs`
+// Exact timeAt formula from reference/codex-original/packages/animation-engine/scroll-video.mjs
 function timeAt(progress, duration = 8, fps = 24) {
+  if (!Number.isFinite(duration) || duration <= 0) return 0
   const clamped = Math.min(1, Math.max(0, Number(progress) || 0))
-  const safeDuration = Math.max(0, (Number(duration) || 8) - 1 / (Number(fps) || 24))
-  return Number((clamped * safeDuration).toFixed(4))
+  return clamped * Math.max(0, duration - 1 / fps)
 }
 
 export default function ClientWebsiteView() {
   const {
     activeTenant,
-    activePlan,
     triggerMissedCallRescue,
     openHelperModal,
+    setActiveView,
   } = usePlatform()
 
-  const heroPinRef = useRef(null)
-  const canvasRef = useRef(null)
+  const heroSectionRef = useRef(null)
   const videoRef = useRef(null)
+  const canvasRef = useRef(null)
   const customFramesRef = useRef([])
-  const frameStateRef = useRef({ frame: 0 })
-
-  const [currentFrame, setCurrentFrame] = useState(0)
-  const [scrollProgress, setScrollProgress] = useState(0)
-  const [loadedWebpCount, setLoadedWebpCount] = useState(0)
-  const [showPipelineDrawer, setShowPipelineDrawer] = useState(false)
-
-  // Scrubbing visual mode: 'hybrid' (Real Video + Telemetry), 'video' (Pure Tiberius Video), 'wireframe' (150-Frame .webp / 3D CAD)
-  const [visualMode, setVisualMode] = useState('hybrid')
-  const [motionPaused, setMotionPaused] = useState(false)
-  const [videoReady, setVideoReady] = useState(false)
-
   const folderInputRef = useRef(null)
 
-  // Preload .webp sequence if present in /sequences/<tenant>/frame_0001.webp
+  const [scrollProgress, setScrollProgress] = useState(0)
+  const [currentFrame, setCurrentFrame] = useState(0)
+  const [motionPaused, setMotionPaused] = useState(false)
+  const [videoReady, setVideoReady] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [loadedWebpCount, setLoadedWebpCount] = useState(0)
+
+  // Default to pure Codex video reveal ('video') if tenant has video; fallback to 'wireframe' only if no video
+  const hasVideo = Boolean(activeTenant.media?.video || activeTenant.id === 'scg-roofing')
+  const [engineMode, setEngineMode] = useState('video')
+  const activeVisualMode = hasVideo && engineMode === 'video' ? 'video' : 'wireframe'
+
+  const posterSrc =
+    activeTenant.media?.poster || '/assets/roofing/reveal-v1/poster.webp'
+  const videoSrc =
+    activeTenant.media?.video || '/assets/roofing/reveal-v3/scrub.mp4'
+  const detailImgSrc =
+    activeTenant.media?.detailImage || '/assets/roofing/reveal-v2/roof-detail.webp'
+  const helperAvatarSrc =
+    activeTenant.media?.helperAvatar || '/assets/roofing/helper-v1/avatar.webp'
+
+  // Preload 150-frame .webp sequence if present in /sequences/<tenant>/frame_0001.webp
   useEffect(() => {
     let cancelled = false
     const frames = new Array(TOTAL_FRAMES)
@@ -101,9 +86,7 @@ export default function ClientWebsiteView() {
     }
 
     probeImg.onerror = () => {
-      if (!cancelled) {
-        setLoadedWebpCount(0)
-      }
+      if (!cancelled) setLoadedWebpCount(0)
     }
 
     return () => {
@@ -111,932 +94,1412 @@ export default function ClientWebsiteView() {
     }
   }, [activeTenant])
 
-  // Load local .webp sequence files from disk for testing
   const handleCustomFramesUpload = (e) => {
     const files = Array.from(e.target.files || []).sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { numeric: true })
     )
     if (!files.length) return
 
-    const frames = []
-    let count = 0
+    const frames = new Array(TOTAL_FRAMES)
+    let loaded = 0
     files.slice(0, TOTAL_FRAMES).forEach((file, idx) => {
       const url = URL.createObjectURL(file)
       const img = new Image()
       img.decoding = 'async'
       img.src = url
       img.onload = () => {
-        count += 1
+        loaded += 1
         frames[idx] = img
         customFramesRef.current = frames
-        setLoadedWebpCount(count)
-        setVisualMode('wireframe')
+        setLoadedWebpCount(loaded)
+        setEngineMode('wireframe')
       }
     })
   }
 
-  // Scrub the HTML5 <video> using Tiberius's exact `timeAt(progress, duration, fps)`
+  // Sync video timestamp or 150-frame canvas with scrollProgress
   useEffect(() => {
-    const vid = videoRef.current
-    if (!vid || motionPaused || visualMode === 'wireframe') return
+    if (motionPaused) return
 
-    const duration = vid.duration || activeTenant.media?.duration || 8
-    const fps = activeTenant.media?.fps || 24
-    const nextTime = timeAt(scrollProgress, duration, fps)
-
-    if (
-      vid.readyState >= 1 &&
-      Math.abs((vid.currentTime || 0) - nextTime) > 1 / (fps * 2)
-    ) {
-      try {
-        vid.currentTime = nextTime
-      } catch {
-        // Ignore seek before metadata ready
+    if (activeVisualMode === 'video') {
+      const video = videoRef.current
+      if (video && video.readyState >= 2) {
+        const duration = Math.min(8, video.duration || 8)
+        const targetTime = timeAt(scrollProgress, duration, 24)
+        if (Math.abs(video.currentTime - targetTime) > 1 / 48) {
+          try {
+            video.currentTime = targetTime
+          } catch {
+            // Ignore seek errors while buffering
+          }
+        }
       }
-    }
-  }, [scrollProgress, motionPaused, visualMode, activeTenant])
-
-  // Draw canvas frame whenever frame index, tenant, mode, or viewport changes
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-
-    const handleResize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    } else if (activeVisualMode === 'wireframe') {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const dpr = window.devicePixelRatio || 1
       const rect = canvas.getBoundingClientRect()
-      canvas.width = rect.width * dpr
-      canvas.height = rect.height * dpr
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      if (rect.width === 0 || rect.height === 0) return
 
-      if (visualMode === 'video') {
-        ctx.clearRect(0, 0, rect.width, rect.height)
-        return
+      if (
+        canvas.width !== Math.floor(rect.width * dpr) ||
+        canvas.height !== Math.floor(rect.height * dpr)
+      ) {
+        canvas.width = Math.floor(rect.width * dpr)
+        canvas.height = Math.floor(rect.height * dpr)
       }
 
+      const ctx = canvas.getContext('2d')
+      ctx.save()
+      ctx.scale(dpr, dpr)
       renderScrubFrame(
         ctx,
         rect.width,
         rect.height,
-        frameStateRef.current.frame,
+        currentFrame,
         TOTAL_FRAMES,
         activeTenant,
         customFramesRef.current,
-        visualMode === 'hybrid' && videoReady && !motionPaused
+        false
       )
+      ctx.restore()
     }
+  }, [scrollProgress, currentFrame, activeVisualMode, activeTenant, motionPaused])
 
-    handleResize()
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [activeTenant, currentFrame, loadedWebpCount, visualMode, videoReady, motionPaused])
-
-  // GSAP ScrollTrigger Pinned Scrubbing Engine (scrub: 0.4, 150 frames)
+  // Bind GSAP ScrollTrigger (scrub: 0.4) to Codex's native 240svh .hero + sticky .hero-sticky
   useEffect(() => {
-    const heroEl = heroPinRef.current
-    if (!heroEl) return
+    const section = heroSectionRef.current
+    if (!section) return
 
-    frameStateRef.current.frame = 0
+    const st = ScrollTrigger.create({
+      trigger: section,
+      start: 'top top',
+      end: 'bottom bottom',
+      scrub: 0.4,
+      onUpdate: (self) => {
+        if (motionPaused) return
+        const p = Math.min(1, Math.max(0, self.progress))
+        setScrollProgress(p)
+        setCurrentFrame(
+          Math.min(TOTAL_FRAMES - 1, Math.max(0, Math.round(p * (TOTAL_FRAMES - 1))))
+        )
+      },
+    })
 
-    const ctx = gsap.context(() => {
-      gsap.to(frameStateRef.current, {
-        frame: TOTAL_FRAMES - 1,
-        snap: 'frame',
-        ease: 'none',
-        scrollTrigger: {
-          trigger: heroEl,
-          start: 'top top',
-          end: '+=2600',
-          scrub: 0.4,
-          pin: true,
-          anticipatePin: 1,
-          onUpdate: (self) => {
-            if (motionPaused) return
-            const idx = Math.min(
-              TOTAL_FRAMES - 1,
-              Math.max(0, Math.round(self.progress * (TOTAL_FRAMES - 1)))
-            )
-            frameStateRef.current.frame = idx
-            setCurrentFrame(idx)
-            setScrollProgress(self.progress)
-          },
-        },
-      })
-    }, heroEl)
-
-    return () => ctx.revert()
+    return () => st.kill()
   }, [activeTenant.id, motionPaused])
 
-  const formattedFrame = String(currentFrame + 1).padStart(3, '0')
-  const pct = Math.round(scrollProgress * 100)
-  const posterSrc =
-    activeTenant.media?.poster || '/assets/roofing/reveal-v1/poster.webp'
-  const videoSrc =
-    activeTenant.media?.video || '/assets/roofing/reveal-v3/scrub.mp4'
-  const detailImgSrc =
-    activeTenant.media?.detailImage || '/assets/roofing/reveal-v2/roof-detail.webp'
-  const helperAvatarSrc =
-    activeTenant.media?.helperAvatar || '/assets/roofing/helper-v1/avatar.webp'
+  const isScg = activeTenant.id === 'scg-roofing'
+  const brandWords = activeTenant.companyName.split(' ')
+  const brandMain = isScg ? 'SCG' : brandWords[0]?.toUpperCase() || 'SCG'
+  const brandSub = isScg
+    ? 'ROOFING'
+    : brandWords.slice(1).join(' ').toUpperCase() || activeTenant.niche.toUpperCase()
 
-  const defaultProjects = activeTenant.projects || [
-    {
-      city: 'Manchester, NH',
-      image: '/assets/roofing/scg-projects/manchester.webp',
-      scope: 'Architectural Shingle & Ridge Ventilation System',
-      quote: 'Patrick and his team were fantastic to deal with.',
-      author: 'John · Manchester, NH',
-    },
-    {
-      city: 'Dover, NH',
-      image: '/assets/roofing/scg-projects/dover.webp',
-      scope: 'Complete Tear-Off, Ice & Water Shield + New Flashing',
-      quote: 'Professional, responsive, and does excellent work.',
-      author: 'Joyce · Londonderry, NH',
-    },
-    {
-      city: 'Nottingham, NH',
-      image: '/assets/roofing/scg-projects/nottingham.webp',
-      scope: 'Full Roof Replacement & Structural Decking Check',
-      quote: 'Completely replaced our existing roof.',
-      author: 'Sue · Nottingham, NH',
-    },
-  ]
-
-  const defaultFaqs = activeTenant.faqs || [
-    {
-      q: 'Can I start with a leak or a small repair?',
-      a: `Yes. ${activeTenant.companyName} handles leak diagnostics, flashing repairs, and full replacements in ${activeTenant.city}. Upload a driveway photo in the AI Dock and you don’t need to diagnose the cause first.`,
-    },
-    {
-      q: 'Can I include photos with my question or quote request?',
-      a: 'Yes! Add up to 3 JPG, PNG, or WebP photos. Our client-side optimizer resizes them automatically and runs a Vision AI pre-scan for our estimator.',
-    },
-    {
-      q: 'How do ballpark ranges and inspections work?',
-      a: 'Alfred provides transparent local ballpark ranges right away based on our contractor pricing table and helps you lock in a confirmed inspection slot.',
-    },
-  ]
-
-  const primaryServices = activeTenant.pricingRules.services.slice(0, 2)
-  const supportingServices = activeTenant.pricingRules.services.slice(2)
+  const activeCallout = activeTenant.callouts?.find(
+    (c) => scrollProgress >= c.startProgress && scrollProgress <= c.endProgress
+  )
 
   return (
-    <div className="client-website-container">
-      {/* Pinned GSAP Scroll-Scrubbing Hero Section (Fusing Tiberius Video + Higgsfield 150-Frame Canvas) */}
-      <section
-        ref={heroPinRef}
-        className="scrub-hero-section"
-        data-motion={motionPaused ? 'paused' : 'scrubbing'}
-      >
-        {/* Layer 1: Tiberius Real Poster & Scroll-Scrubbed MP4 Video (`scroll-video.mjs`) */}
-        {visualMode !== 'wireframe' && (
-          <div className="tiberius-video-stage" aria-hidden="true">
+    <div
+      className="codex-site-wrapper"
+      style={{ '--accent': activeTenant.brandColor || '#b72c28' }}
+    >
+      <a className="skip" href="#main">
+        Skip to content
+      </a>
+
+      {/* DEMO BAR (Exact Codex reference/codex-original/index.html line 1) */}
+      <div className="demo-bar">
+        <span>
+          <b>TIBERIUS SMART SITES</b>
+          <span className="demo-separator"> / </span>
+          {isScg
+            ? 'Live Tiberius demo · Not affiliated with SCG'
+            : `Live Tiberius demo · ${activeTenant.companyName} (${activeTenant.city})`}
+        </span>
+        <a
+          href="#owner"
+          onClick={(e) => {
+            e.preventDefault()
+            setActiveView('backoffice')
+          }}
+        >
+          Owner sign-in <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+
+      {/* SITE HEADER (Exact Codex reference/codex-original/index.html line 1) */}
+      <header className="site-header">
+        <a
+          className="brand"
+          href="#hero"
+          aria-label={`${activeTenant.companyName} home`}
+        >
+          <svg viewBox="0 0 48 40" aria-hidden="true">
+            <path d="M3 30L24 8l21 22M12 30l12-12 12 12" />
+          </svg>
+          <span>
+            {brandMain}
+            <small>{brandSub}</small>
+          </span>
+        </a>
+
+        <button
+          className="menu-toggle"
+          id="menu-toggle"
+          type="button"
+          aria-expanded={mobileMenuOpen}
+          aria-controls="site-nav"
+          aria-label="Open navigation"
+          onClick={() => setMobileMenuOpen((prev) => !prev)}
+        >
+          Menu <span aria-hidden="true">☰</span>
+        </button>
+
+        <nav
+          id="site-nav"
+          className={`site-nav ${mobileMenuOpen ? 'is-open' : ''}`}
+          aria-label="Main navigation"
+        >
+          <a href="#services" onClick={() => setMobileMenuOpen(false)}>
+            Services
+          </a>
+          <a href="#approach" onClick={() => setMobileMenuOpen(false)}>
+            Our approach
+          </a>
+          <a href="#proof" onClick={() => setMobileMenuOpen(false)}>
+            Projects &amp; reviews
+          </a>
+          <a href="#faqs" onClick={() => setMobileMenuOpen(false)}>
+            FAQs
+          </a>
+          <a
+            className="mobile-contact"
+            href="#inquiry"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            Start an inquiry <span aria-hidden="true">↗</span>
+          </a>
+        </nav>
+
+        <a
+          className="button button-small header-cta"
+          href="#inquiry"
+          data-engage="quote"
+          data-cta
+          onClick={(e) => {
+            e.preventDefault()
+            openHelperModal('quote')
+          }}
+        >
+          Get a quote <span aria-hidden="true">↗</span>
+        </a>
+      </header>
+
+      <main id="main">
+        {/* HERO SECTION (Exact Codex reference/codex-original/index.html lines 1-13) */}
+        <section
+          ref={heroSectionRef}
+          className="hero"
+          id="hero"
+          data-motion={motionPaused ? 'paused' : 'scroll'}
+          data-progress={scrollProgress.toFixed(3)}
+          style={{ '--scene-progress': String(scrollProgress) }}
+          aria-labelledby="hero-title"
+        >
+          <div className="hero-sticky">
             <img
+              className="hero-art"
               src={posterSrc}
-              alt=""
-              className="tiberius-hero-poster"
+              width="960"
+              height="540"
               fetchPriority="high"
+              alt="AI-generated concept home with a charcoal shingle roof. Not a completed contractor project."
             />
+
             <video
               ref={videoRef}
+              className="hero-video"
               src={videoSrc}
-              poster={posterSrc}
+              data-ready={
+                videoReady && activeVisualMode === 'video' ? 'true' : 'false'
+              }
               muted
               playsInline
               preload="auto"
               disablePictureInPicture
-              className={`tiberius-hero-video ${videoReady ? 'is-ready' : ''}`}
+              aria-hidden="true"
+              tabIndex={-1}
               onLoadedData={() => setVideoReady(true)}
             />
-            <div className="tiberius-hero-shade" />
-          </div>
-        )}
 
-        {/* Layer 2: HTML5 <canvas> for 150-Frame .webp Sequence OR Hybrid 3D Telemetry Overlay */}
-        <canvas
-          ref={canvasRef}
-          className={`scrub-hero-canvas ${
-            visualMode === 'hybrid' && videoReady ? 'canvas-hybrid-overlay' : ''
-          }`}
-        />
-
-        {/* Top Contractor Brand & Scrub Engine Controls */}
-        <div className="hero-overlay-header">
-          <div className="contractor-badge glass-pill">
-            <span
-              className="contractor-dot"
-              style={{ backgroundColor: activeTenant.brandColor }}
+            <canvas
+              ref={canvasRef}
+              className="hero-canvas"
+              data-ready={activeVisualMode === 'wireframe' ? 'true' : 'false'}
+              aria-hidden="true"
             />
-            <strong>{activeTenant.companyName}</strong>
-            <span className="divider">•</span>
-            <span>{activeTenant.city}</span>
-            <span className="divider">•</span>
-            <span className="niche-tag">{activeTenant.niche}</span>
-          </div>
 
-          <div className="hero-telemetry-pills">
-            {/* Switch between Hybrid Video+HUD, Pure Video, and 3D Wireframe/.webp */}
-            <div className="visual-mode-switcher glass-pill">
-              <button
-                type="button"
-                className={`mode-mini-btn ${visualMode === 'hybrid' ? 'active' : ''}`}
-                onClick={() => setVisualMode('hybrid')}
-                title="Real Tiberius Video Orbit + 3D Telemetry HUD"
-              >
-                <Layers size={12} />
-                <span>Hybrid Orbit</span>
-              </button>
-              <button
-                type="button"
-                className={`mode-mini-btn ${visualMode === 'video' ? 'active' : ''}`}
-                onClick={() => setVisualMode('video')}
-                title="Pure Tiberius 24fps Video Scrubbing (scrub.mp4)"
-              >
-                <Film size={12} />
-                <span>Pure Video</span>
-              </button>
-              <button
-                type="button"
-                className={`mode-mini-btn ${
-                  visualMode === 'wireframe' ? 'active' : ''
-                }`}
-                onClick={() => setVisualMode('wireframe')}
-                title="150-Frame .webp Sequence / 3D CAD Wireframe"
-              >
-                <Box size={12} />
-                <span>3D Wireframe</span>
-              </button>
-            </div>
+            <div className="hero-shade"></div>
 
-            <div className="telemetry-pill glass-pill">
-              <span className="mono-label">SCRUB: 0.4s</span>
-              <span className="divider">|</span>
-              <span
-                className="mono-highlight"
-                style={{ color: activeTenant.brandColor }}
-              >
-                FRAME {formattedFrame} / {TOTAL_FRAMES} ({pct}%)
-              </span>
-            </div>
+            <div className="hero-copy wrap">
+              <p className="eyebrow">
+                <span className="small-line"></span>{' '}
+                {isScg
+                  ? 'SOUTHERN NEW HAMPSHIRE / BASED IN HOOKSETT'
+                  : `${activeTenant.city.toUpperCase()} / ${activeTenant.niche.toUpperCase()}`}
+              </p>
 
-            {/* Pause / Enable Motion Toggle (from Tiberius scroll-video.mjs) */}
-            <button
-              type="button"
-              className="telemetry-pill glass-pill clickable"
-              onClick={() => setMotionPaused((prev) => !prev)}
-              title="Toggle scroll motion (Accessibility / Reduced Motion)"
-            >
-              {motionPaused ? <Play size={12} /> : <Pause size={12} />}
-              <span>{motionPaused ? 'Enable motion' : 'Pause motion'}</span>
-            </button>
+              <h1 id="hero-title">
+                {isScg ? (
+                  <>
+                    For the home
+                    <br />
+                    <em>under your roof.</em>
+                  </>
+                ) : (
+                  <>
+                    {activeTenant.heroHeadline}
+                    <br />
+                    <em>{activeTenant.companyName}.</em>
+                  </>
+                )}
+              </h1>
 
-            <button
-              type="button"
-              className="telemetry-pill glass-pill clickable"
-              onClick={() => setShowPipelineDrawer((prev) => !prev)}
-            >
-              <Terminal size={13} />
-              <span>
-                {loadedWebpCount > 0
-                  ? `.WEBP (${loadedWebpCount}/${TOTAL_FRAMES})`
-                  : 'FFMPEG PIPELINE'}
-              </span>
-            </button>
+              <p className="hero-description">
+                {isScg
+                  ? 'A drip after rain. Shingles showing their age. A project you’re ready to start. Let’s work out the next step.'
+                  : activeTenant.heroSubheadline}
+              </p>
 
-            <button
-              type="button"
-              className="telemetry-pill glass-pill clickable rescue-btn"
-              onClick={() => triggerMissedCallRescue()}
-              title="Simulate a customer calling and triggering Missed-Call Rescue SMS"
-            >
-              <PhoneCall size={13} />
-              <span>Missed Call ({activeTenant.phoneDisplay})</span>
-            </button>
-          </div>
-        </div>
-
-        {/* FFmpeg .webp Pipeline & Sequence Uploader Popover */}
-        {showPipelineDrawer && (
-          <div className="pipeline-drawer glass-panel">
-            <div className="pipeline-drawer-top">
-              <strong>
-                Tiberius Dual-Engine: 24fps MP4 Video Scrub + 150-Frame .webp LRU Sequence
-              </strong>
-              <button
-                type="button"
-                className="btn-xs"
-                onClick={() => folderInputRef.current?.click()}
-              >
-                <Upload size={13} /> Load Local .webp Frames
-              </button>
-              <input
-                ref={folderInputRef}
-                type="file"
-                accept="image/webp,image/png,image/jpeg"
-                multiple
-                style={{ display: 'none' }}
-                onChange={handleCustomFramesUpload}
-              />
-            </div>
-            <p className="pipeline-desc">
-              Extract 150 ultra-lightweight <code>.webp</code> frames from any camera orbit MP4 (or scrub <code>/assets/roofing/reveal-v3/scrub.mp4</code> directly):
-            </p>
-            <pre className="ffmpeg-code">
-              {`ffmpeg -i public/assets/roofing/reveal-v3/scrub.mp4 -vf "fps=30,scale=1920:-1:flags=lanczos" -c:v libwebp -lossless 0 -compression_level 6 -q:v 78 public${activeTenant.frameSequence?.basePath}0%03d.webp`}
-            </pre>
-          </div>
-        )}
-
-        {/* Intro Editorial Hero Copy + Trust Credentials (Fades smoothly on scroll) */}
-        <div
-          className="hero-center-headline"
-          style={{
-            opacity: Math.max(0, 1 - scrollProgress * 4.5),
-            transform: `translateY(${-scrollProgress * 85}px)`,
-            pointerEvents: scrollProgress > 0.22 ? 'none' : 'auto',
-          }}
-        >
-          <div
-            className="eyebrow-pill"
-            style={{ borderColor: activeTenant.brandColor }}
-          >
-            <Sparkles size={13} style={{ color: activeTenant.brandColor }} />
-            <span>
-              {activeTenant.city.toUpperCase()} •{' '}
-              {activeTenant.frameSequence?.cameraLabel}
-            </span>
-          </div>
-
-          <h1>
-            {activeTenant.heroHeadline || activeTenant.companyName}{' '}
-            <span
-              className="headline-accent"
-              style={{ color: activeTenant.brandColor }}
-            >
-              — {activeTenant.companyName}
-            </span>
-          </h1>
-
-          <p>
-            {activeTenant.heroSubheadline ||
-              'Scroll to scrub our 3D inspection orbit, or drop a project photo in the AI Dock below for an instant SMS quote.'}
-          </p>
-
-          {/* Hero Action Buttons + Trust Credentials Strip (Recreated from Tiberius index.html) */}
-          <div className="hero-cta-row">
-            <button
-              type="button"
-              className="btn-hero-primary"
-              style={{ backgroundColor: activeTenant.brandColor }}
-              onClick={() => openHelperModal('quote')}
-            >
-              <span>Start 3-Step Quote Request</span>
-              <ArrowUpRight size={16} />
-            </button>
-            <button
-              type="button"
-              className="btn-hero-secondary glass-pill"
-              onClick={() => openHelperModal('chat')}
-            >
-              <MessageSquare size={15} />
-              <span>Ask Alfred (Roof Assistant)</span>
-            </button>
-          </div>
-
-          {activeTenant.trustCredentials && (
-            <ul className="tiberius-trust-strip" aria-label="Business credentials">
-              {activeTenant.trustCredentials.map((cred, i) => (
-                <li key={i}>
-                  <strong style={{ color: activeTenant.brandColor }}>
-                    {cred.metric}
-                  </strong>
-                  <span>{cred.label}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div className="scroll-cue">
-            <ArrowDown size={15} />
-            <span>
-              {scrollProgress > 0.08
-                ? `THE WHOLE PICTURE ↓ (${pct}%)`
-                : 'SCROLL TO REVEAL ↓'}
-            </span>
-          </div>
-        </div>
-
-        {/* Choreographed Glassmorphic Value Callouts */}
-        <div className="choreographed-callouts-layer">
-          {activeTenant.callouts.map((callout) => {
-            const isVisible =
-              scrollProgress >= callout.startProgress &&
-              scrollProgress <= callout.endProgress
-
-            const windowSpan = callout.endProgress - callout.startProgress
-            const localProgress =
-              (scrollProgress - callout.startProgress) / windowSpan
-            const opacity = isVisible
-              ? Math.min(
-                  1,
-                  Math.sin(Math.max(0, Math.min(1, localProgress)) * Math.PI) *
-                    1.65
-                )
-              : 0
-
-            return (
-              <div
-                key={callout.id}
-                className={`choreographed-card glass-panel pos-${callout.position}`}
-                style={{
-                  opacity,
-                  transform: `translateY(${isVisible ? 0 : 24}px) scale(${
-                    isVisible ? 1 : 0.96
-                  })`,
-                  borderColor: isVisible
-                    ? `${activeTenant.brandColor}66`
-                    : undefined,
-                  pointerEvents: isVisible ? 'auto' : 'none',
+              <a
+                className="button"
+                href="#inquiry"
+                data-cta
+                onClick={(e) => {
+                  e.preventDefault()
+                  openHelperModal('quote')
                 }}
               >
-                <div className="callout-header">
-                  <span
-                    className="callout-eyebrow"
-                    style={{ color: activeTenant.brandColor }}
+                Request a roof inspection <span aria-hidden="true">↗</span>
+              </a>
+
+              <div className="hero-proof">
+                <ul
+                  className="trust-indicators"
+                  aria-label="SCG-published business credentials"
+                >
+                  {(
+                    activeTenant.trustCredentials || [
+                      { metric: '325+', label: 'Roofs completed' },
+                      { metric: '40+', label: 'Years of experience' },
+                      {
+                        metric: 'Licensed & insured',
+                        label: 'As published by SCG',
+                      },
+                      { metric: 'Locally based', label: 'Hooksett, NH' },
+                    ]
+                  ).map((cred, idx) => (
+                    <li key={idx}>
+                      <strong>{cred.metric}</strong>
+                      <span>{cred.label}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="trust-source">
+                  <a
+                    href="https://www.scgroofs.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    {callout.eyebrow}
-                  </span>
-                  <span className="callout-frames">{callout.frameRange}</span>
-                </div>
-                <h3>{callout.title}</h3>
-                <p>{callout.body}</p>
-                <div className="callout-footer">
-                  <span
-                    className="callout-metric-pill"
-                    style={{
-                      backgroundColor: `${activeTenant.brandColor}22`,
-                      color: activeTenant.brandColor,
-                    }}
-                  >
-                    <CheckCircle2 size={13} />
-                    {callout.metric}
+                    SCG-published claims <span aria-hidden="true">↗</span>
+                    <span className="proof-sr"> (opens in a new tab)</span>
+                  </a>
+                  <span className="proof-sr">
+                    Claims published by SCG; not independently verified by Tiberius.
                   </span>
                 </div>
               </div>
-            )
-          })}
-        </div>
+            </div>
 
-        {/* Tiberius Scene Progress Meter Bar at Bottom of Hero */}
-        <div className="tiberius-scene-meter" aria-hidden="true">
-          <div
-            className="tiberius-scene-meter-fill"
-            style={{
-              width: `${pct}%`,
-              backgroundColor: activeTenant.brandColor,
-            }}
-          />
-        </div>
+            {/* Choreographed Value Callout (Subtle editorial card on scroll) */}
+            {activeCallout && (
+              <aside
+                className="codex-scroll-callout"
+                aria-label={activeCallout.title}
+              >
+                <span className="codex-callout-eyebrow">
+                  {activeCallout.eyebrow} · {activeCallout.frameRange}
+                </span>
+                <strong>{activeCallout.title}</strong>
+                <p>{activeCallout.body}</p>
+                <small>{activeCallout.metric}</small>
+              </aside>
+            )}
 
-        {/* Right-Side Scroll Progress Rail */}
-        <div className="hero-scroll-rail">
-          <div className="rail-label">ORBIT</div>
-          <div className="rail-track">
-            <div
-              className="rail-fill"
-              style={{
-                height: `${pct}%`,
-                backgroundColor: activeTenant.brandColor,
-              }}
-            />
+            {/* Embedded Contextual AI Dock (Anchored above hero-bottom) */}
+            <ContextualAIDock />
+
+            <div className="scene-meter" aria-hidden="true">
+              <span></span>
+            </div>
+
+            <div className="hero-bottom wrap">
+              <span>
+                <i></i> AI CONCEPT / NOT A COMPLETED PROJECT
+              </span>
+              <div className="motion-tools">
+                <button
+                  id="motion-toggle"
+                  className="text-button"
+                  type="button"
+                  aria-pressed={motionPaused}
+                  onClick={() => setMotionPaused((prev) => !prev)}
+                >
+                  {motionPaused ? 'Enable motion' : 'Pause motion'}
+                </button>
+                <span className="scroll-hint">
+                  {scrollProgress >= 0.98
+                    ? 'THE WHOLE PICTURE ↓'
+                    : 'SCROLL TO REVEAL ↓'}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="rail-frame">{formattedFrame}</div>
-        </div>
+        </section>
 
-        {/* Embedded Contextual AI Dock (Anchored at Bottom of Hero) */}
-        <ContextualAIDock />
-      </section>
-
-      {/* TIBERIUS 3-ACTION HELP DOCK (Immediately below hero, recreated from .help-dock) */}
-      <div className="tiberius-help-dock-section">
-        <div className="tiberius-help-dock">
+        {/* HELP DOCK (Exact Codex reference/codex-original/index.html lines 16-20) */}
+        <div className="help-dock wrap" aria-label="Choose your next step">
           <button
             type="button"
-            className="help-dock-card glass-panel"
+            data-engage="chat"
             onClick={() => openHelperModal('chat')}
           >
-            <div
-              className="help-dock-icon"
-              style={{
-                backgroundColor: `${activeTenant.brandColor}20`,
-                color: activeTenant.brandColor,
-              }}
-            >
-              <MessageSquare size={20} />
-            </div>
-            <div className="help-dock-copy">
-              <strong>Have a project question?</strong>
-              <small>Ask Alfred, our live AI assistant + photo scanner</small>
-            </div>
-            <ArrowUpRight size={16} className="help-dock-arrow" />
+            <span className="dock-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2A8.5 8.5 0 0 1 21 11.5Z" />
+                <path d="M7 10h9M7 14h6" />
+              </svg>
+            </span>
+            <span>
+              <strong>Have a roofing question?</strong>
+              <small>Ask the roof assistant</small>
+            </span>
+            <span aria-hidden="true">↗</span>
           </button>
 
           <button
             type="button"
-            className="help-dock-card glass-panel"
+            data-engage="quote"
             onClick={() => openHelperModal('quote')}
           >
-            <div
-              className="help-dock-icon"
-              style={{
-                backgroundColor: `${activeTenant.brandColor}20`,
-                color: activeTenant.brandColor,
-              }}
-            >
-              <FileText size={20} />
-            </div>
-            <div className="help-dock-copy">
-              <strong>Planning a repair or replacement?</strong>
-              <small>Start your 3-step guided quote request</small>
-            </div>
-            <ArrowUpRight size={16} className="help-dock-arrow" />
+            <span className="dock-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h2M14 15h1M9 18h2M14 18h1" />
+              </svg>
+            </span>
+            <span>
+              <strong>Planning a project?</strong>
+              <small>Start your quote request</small>
+            </span>
+            <span aria-hidden="true">↗</span>
           </button>
 
           <button
             type="button"
-            className="help-dock-card glass-panel"
+            data-engage="booking"
             onClick={() => openHelperModal('booking')}
           >
-            <div
-              className="help-dock-icon"
-              style={{
-                backgroundColor: `${activeTenant.brandColor}20`,
-                color: activeTenant.brandColor,
-              }}
-            >
-              <Calendar size={20} />
-            </div>
-            <div className="help-dock-copy">
-              <strong>Need a closer look on-site?</strong>
-              <small>Request an inspection or book a slot</small>
-            </div>
-            <ArrowUpRight size={16} className="help-dock-arrow" />
+            <span className="dock-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 5h16v16H4zM8 2v6M16 2v6M4 10h16M8 14h3M14 14h3M8 18h3" />
+              </svg>
+            </span>
+            <span>
+              <strong>Need a closer look?</strong>
+              <small>Request an inspection</small>
+            </span>
+            <span aria-hidden="true">↗</span>
           </button>
         </div>
-      </div>
 
-      {/* SECTION 1: PRIMARY SERVICES SPLIT + SHINGLE DETAIL + ALGORITHMIC PRICING */}
-      <section className="below-fold-section" id="services">
-        <div className="below-fold-inner">
-          <div className="section-heading-block">
-            <span
-              className="section-tag"
-              style={{ color: activeTenant.brandColor }}
-            >
-              {activeTenant.niche.toUpperCase()} // {activeTenant.city.toUpperCase()}
-            </span>
-            <h2>Whatever’s happening up there, start here.</h2>
+        {/* ROOF SERVICES (Exact Codex reference/codex-original/index.html lines 21-23) */}
+        <section className="roof-services wrap" id="services">
+          <div className="roof-section-heading">
+            <div>
+              <p className="section-kicker">
+                {isScg ? 'Roofing & home services' : `${activeTenant.niche} services`}
+              </p>
+              <h2>
+                {isScg ? (
+                  <>
+                    Whatever’s happening up there,
+                    <br />
+                    start here.
+                  </>
+                ) : (
+                  <>
+                    Transparent scope &amp; pricing
+                    <br />
+                    for {activeTenant.city}.
+                  </>
+                )}
+              </h2>
+            </div>
             <p>
-              A leak you can’t ignore. A system you’re ready to replace. Compare transparent local ranges powered by our live contractor JSON config—or click any service to launch a guided estimate.
+              {isScg
+                ? 'A leak you can’t ignore. A roof you’re ready to replace. Find the right starting point for your home.'
+                : activeTenant.heroSubheadline}
             </p>
           </div>
 
-          {/* Tiberius Primary Split ("Fix a problem" vs "Plan a new roof") + Shingle Detail Figure */}
-          <div className="tiberius-primary-services-layout">
-            <div className="primary-services-stack">
-              {primaryServices.map((svc, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className="tiberius-primary-service-card glass-panel"
-                  onClick={() => openHelperModal('quote', svc.name)}
-                >
-                  <div
-                    className="primary-svc-icon"
-                    style={{
-                      backgroundColor: `${activeTenant.brandColor}20`,
-                      color: activeTenant.brandColor,
+          <div className="roof-service-layout">
+            <div className="primary-services">
+              {isScg ? (
+                <>
+                  <a
+                    href="#inquiry"
+                    data-engage="quote"
+                    data-service="Roof leak"
+                    className="primary-service"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      openHelperModal('quote', 'Roof leak')
                     }}
                   >
-                    {idx === 0 ? <Wrench size={22} /> : <Home size={22} />}
-                  </div>
-                  <div className="primary-svc-body">
-                    <div className="primary-svc-top">
-                      <span className="primary-svc-kicker">
-                        {svc.category || (idx === 0 ? 'Fix a problem' : 'Plan a new build')}
-                      </span>
-                      <span
-                        className="primary-svc-price"
-                        style={{ color: activeTenant.brandColor }}
+                    <span className="service-symbol">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
                       >
-                        {svc.range}
+                        <path d="m2 12 10-9 10 9M5 10v11h14V10M9 21v-7h6v7" />
+                      </svg>
+                    </span>
+                    <div>
+                      <h3>Fix a problem.</h3>
+                      <p>
+                        Leaks, damaged shingles, or a ceiling stain that appeared after the
+                        rain. Start with an inspection and repair discussion.
+                      </p>
+                      <span>
+                        Roof inspection &amp; repair <span aria-hidden="true">↗</span>
                       </span>
                     </div>
-                    <h3>{svc.name}</h3>
-                    <p>
-                      {svc.description ||
-                        `Start with a diagnostic inspection and transparent scope in ${activeTenant.city}.`}
-                    </p>
-                    <div className="primary-svc-cta">
-                      <span>Start {svc.name} quote request</span>
-                      <ArrowUpRight size={14} />
+                  </a>
+
+                  <a
+                    href="#inquiry"
+                    data-engage="quote"
+                    data-service="Roof replacement"
+                    className="primary-service"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      openHelperModal('quote', 'Roof replacement')
+                    }}
+                  >
+                    <span className="service-symbol">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m5 12 4 4L20 5" />
+                      </svg>
+                    </span>
+                    <div>
+                      <h3>Plan a new roof.</h3>
+                      <p>
+                        Aging roof? New construction? Talk through the scope, materials, and
+                        next steps before making a decision.
+                      </p>
+                      <span>
+                        Roof installation &amp; replacement{' '}
+                        <span aria-hidden="true">↗</span>
+                      </span>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </a>
+                </>
+              ) : (
+                (activeTenant.pricingRules?.services || []).slice(0, 2).map((svc, idx) => (
+                  <a
+                    key={svc.name}
+                    href="#inquiry"
+                    data-engage="quote"
+                    data-service={svc.name}
+                    className="primary-service"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      openHelperModal('quote', svc.name)
+                    }}
+                  >
+                    <span className="service-symbol">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        {idx === 0 ? (
+                          <path d="m2 12 10-9 10 9M5 10v11h14V10M9 21v-7h6v7" />
+                        ) : (
+                          <path d="m5 12 4 4L20 5" />
+                        )}
+                      </svg>
+                    </span>
+                    <div>
+                      <h3>{svc.name}</h3>
+                      <p>{svc.description}</p>
+                      <span>
+                        {svc.range} · Request quote <span aria-hidden="true">↗</span>
+                      </span>
+                    </div>
+                  </a>
+                ))
+              )}
             </div>
 
-            <figure className="tiberius-material-figure glass-panel">
+            <figure className="roof-material">
               <img
                 src={detailImgSrc}
-                alt="Architectural shingle & flashing detail"
+                width="960"
+                height="540"
                 loading="lazy"
+                alt="Charcoal roof shingles in a generated design concept"
               />
               <figcaption>
-                <div>
-                  <strong>Every home starts with a structure worth looking after.</strong>
-                  <span>
-                    {activeTenant.pricingRules.freeInspection
-                      ? 'Includes $0 On-Site Structural & Moisture Inspection'
-                      : `$${activeTenant.pricingRules.baseDiagnostic} Diagnostic Waived With Repair`}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="btn-xs"
-                  onClick={() => openHelperModal('chat')}
-                >
-                  Ask Assistant ↗
-                </button>
+                Every home starts with a roof worth looking after.
+                <small>AI-generated design imagery</small>
               </figcaption>
             </figure>
           </div>
 
-          {/* Supporting Services Grid */}
-          {supportingServices.length > 0 && (
-            <div className="services-pricing-grid">
-              {supportingServices.map((svc, idx) => (
-                <div
-                  key={idx}
-                  className="service-price-card glass-panel clickable-card"
-                  onClick={() => openHelperModal('quote', svc.name)}
+          <div className="service-grid">
+            {isScg ? (
+              <>
+                <a
+                  className="service-tile"
+                  href="#inquiry"
+                  data-engage="quote"
+                  data-service="Attic ventilation"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openHelperModal('quote', 'Attic ventilation')
+                  }}
                 >
-                  <div className="svc-card-top">
-                    <span className="svc-urgency">{svc.urgency}</span>
-                    <span className="svc-duration">
-                      <Clock size={13} /> {svc.duration}
-                    </span>
-                  </div>
-                  <h3>{svc.name}</h3>
-                  {svc.description && (
-                    <p className="svc-desc-text">{svc.description}</p>
-                  )}
-                  <div
-                    className="svc-price-range"
-                    style={{ color: activeTenant.brandColor }}
-                  >
-                    {svc.range}
-                  </div>
-                  <div className="svc-rule-note">
-                    <ShieldCheck size={14} className="text-emerald" />
-                    <span>Click to start 3-step quote →</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                  <h3>
+                    Attic venting <span aria-hidden="true">↗</span>
+                  </h3>
+                  <p>
+                    Help heat and moisture escape your attic with ventilation suited to your
+                    roof and home.
+                  </p>
+                </a>
 
-          <div className="ai-rule-banner glass-panel">
+                <a
+                  className="service-tile"
+                  href="#inquiry"
+                  data-engage="quote"
+                  data-service="Gutters"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openHelperModal('quote', 'Gutters')
+                  }}
+                >
+                  <h3>
+                    Gutter installation &amp; cleaning <span aria-hidden="true">↗</span>
+                  </h3>
+                  <p>
+                    Keep rainwater moving away from your home with gutter installation and
+                    help clearing built-up debris.
+                  </p>
+                </a>
+
+                <a
+                  className="service-tile"
+                  href="#inquiry"
+                  data-engage="quote"
+                  data-service="Decking / underlayment"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openHelperModal('quote', 'Decking / underlayment')
+                  }}
+                >
+                  <h3>
+                    Underlayment / roof decking repair <span aria-hidden="true">↗</span>
+                  </h3>
+                  <p>
+                    Address damaged roof decking and the protective layers beneath your
+                    shingles before problems spread further.
+                  </p>
+                </a>
+
+                <a
+                  className="service-tile"
+                  href="#inquiry"
+                  data-engage="quote"
+                  data-service="Skylights"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openHelperModal('quote', 'Skylights')
+                  }}
+                >
+                  <h3>
+                    Skylight installation &amp; repair <span aria-hidden="true">↗</span>
+                  </h3>
+                  <p>
+                    Bring daylight into your home with a new skylight, or get help with an
+                    existing one.
+                  </p>
+                </a>
+              </>
+            ) : (
+              (activeTenant.pricingRules?.services || []).slice(2).map((svc) => (
+                <a
+                  key={svc.name}
+                  className="service-tile"
+                  href="#inquiry"
+                  data-engage="quote"
+                  data-service={svc.name}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openHelperModal('quote', svc.name)
+                  }}
+                >
+                  <h3>
+                    {svc.name} <span aria-hidden="true">↗</span>
+                  </h3>
+                  <p>
+                    {svc.description} ({svc.range})
+                  </p>
+                </a>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* STRUCTURAL APPROACH (Exact Codex reference/codex-original/index.html line 24) */}
+        <section className="roof-process structural-approach" id="approach">
+          <div className="wrap roof-process-grid">
+            <figure>
+              <img
+                src={posterSrc}
+                width="960"
+                height="540"
+                loading="lazy"
+                alt="Generated architectural concept of a home with a charcoal roof"
+              />
+              <figcaption>
+                Design inspiration · AI-generated, not an SCG project
+              </figcaption>
+            </figure>
             <div>
-              <div className="rule-banner-label">
-                ACTIVE ALFRED LLM GUARDRAIL (<code>pricingRules.aiPromptRules</code>)
-              </div>
-              <p className="rule-banner-text">
-                “{activeTenant.pricingRules.aiPromptRules}”
+              <p className="section-kicker">Look beyond the shingles</p>
+              <h2>
+                There’s more protecting your home than the shingles you see.
+              </h2>
+              <p className="process-intro">
+                You don’t need to be a roofing expert. {activeTenant.companyName}’s background in construction
+                and structural work helps it look beyond the surface.
+              </p>
+              <ul className="structural-details">
+                <li>Hidden rot and flashing problems</li>
+                <li>Attic ventilation that isn’t doing its job</li>
+                <li>Damaged underlayment and roof decking</li>
+              </ul>
+              <p className="approach-source">
+                Based on{' '}
+                <a
+                  href="https://www.scgroofs.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  SCG’s published approach <span aria-hidden="true">↗</span>
+                  <span className="proof-sr"> (opens in a new tab)</span>
+                </a>
+                .
               </p>
             </div>
-            <div className="rule-banner-plan">
-              <span>Active License Tier:</span>
-              <strong style={{ color: activeTenant.brandColor }}>
-                {activePlan.name} ({activePlan.priceRange})
-              </strong>
+          </div>
+        </section>
+
+        {/* CUSTOMER PROOF (Exact Codex reference/codex-original/index.html line 25) */}
+        <section
+          className="customer-proof wrap"
+          id="proof"
+          aria-labelledby="proof-title"
+        >
+          <div className="proof-heading">
+            <p className="section-kicker">
+              {isScg
+                ? 'From SCG’s projects & homeowners'
+                : `From ${activeTenant.companyName}’s projects & homeowners`}
+            </p>
+            <h2 id="proof-title">
+              Good work speaks for itself.
+              <br />
+              So do homeowners.
+            </h2>
+          </div>
+
+          <div className="proof-layout">
+            <div className="project-showcase">
+              {isScg || !activeTenant.projects?.length ? (
+                <>
+                  <figure>
+                    <div className="project-photo">
+                      <img
+                        src="/assets/roofing/scg-projects/manchester.webp"
+                        width="1100"
+                        height="1467"
+                        loading="lazy"
+                        decoding="async"
+                        alt="SCG project photograph of a roof installation in Manchester, New Hampshire"
+                      />
+                    </div>
+                    <figcaption>Manchester, NH</figcaption>
+                  </figure>
+                  <figure>
+                    <div className="project-photo">
+                      <img
+                        src="/assets/roofing/scg-projects/dover.webp"
+                        width="1100"
+                        height="733"
+                        loading="lazy"
+                        decoding="async"
+                        alt="SCG project photograph of a roof installation in Dover, New Hampshire"
+                      />
+                    </div>
+                    <figcaption>Dover, NH</figcaption>
+                  </figure>
+                  <figure>
+                    <div className="project-photo">
+                      <img
+                        src="/assets/roofing/scg-projects/nottingham.webp"
+                        width="1100"
+                        height="733"
+                        loading="lazy"
+                        decoding="async"
+                        alt="Property featured in SCG’s Nottingham, New Hampshire project gallery"
+                      />
+                    </div>
+                    <figcaption>Nottingham, NH</figcaption>
+                  </figure>
+                </>
+              ) : (
+                activeTenant.projects.map((proj) => (
+                  <figure key={proj.city}>
+                    <div className="project-photo">
+                      <img
+                        src={proj.image || '/assets/roofing/scg-projects/manchester.webp'}
+                        width="1100"
+                        height="733"
+                        loading="lazy"
+                        decoding="async"
+                        alt={`${activeTenant.companyName} project in ${proj.city}`}
+                      />
+                    </div>
+                    <figcaption>{proj.city}</figcaption>
+                  </figure>
+                ))
+              )}
+            </div>
+
+            <div
+              className="testimonial-section"
+              aria-label="Excerpts from testimonials on SCG’s website"
+            >
+              {isScg || !activeTenant.projects?.length ? (
+                <>
+                  <figure>
+                    <blockquote>
+                      <p>“Completely replaced our existing roof”</p>
+                    </blockquote>
+                    <figcaption>
+                      <strong>Sue</strong>
+                      <span>Nottingham, NH</span>
+                      <small>Excerpt · SCG website</small>
+                    </figcaption>
+                  </figure>
+                  <figure>
+                    <blockquote>
+                      <p>“Patrick and his team were fantastic to deal with”</p>
+                    </blockquote>
+                    <figcaption>
+                      <strong>John</strong>
+                      <span>Manchester, NH</span>
+                      <small>Excerpt · SCG website</small>
+                    </figcaption>
+                  </figure>
+                  <figure>
+                    <blockquote>
+                      <p>“professional, responsive, and does excellent work.”</p>
+                    </blockquote>
+                    <figcaption>
+                      <strong>Joyce</strong>
+                      <span>Londonderry, NH</span>
+                      <small>Excerpt · SCG website</small>
+                    </figcaption>
+                  </figure>
+                </>
+              ) : (
+                activeTenant.projects.map((proj) => (
+                  <figure key={proj.author}>
+                    <blockquote>
+                      <p>“{proj.quote}”</p>
+                    </blockquote>
+                    <figcaption>
+                      <strong>{proj.author}</strong>
+                      <span>{proj.scope}</span>
+                      <small>Verified homeowner · {activeTenant.city}</small>
+                    </figcaption>
+                  </figure>
+                ))
+              )}
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* SECTION 2: TIBERIUS "LOOK BEYOND THE SHINGLES" STRUCTURAL APPROACH */}
-      <section className="tiberius-structural-section" id="approach">
-        <div className="below-fold-inner tiberius-structural-grid">
-          <figure className="structural-figure glass-panel">
-            <img
-              src={posterSrc}
-              alt="Architectural structural overview"
-              loading="lazy"
-            />
-            <figcaption>
-              Full-system inspection · Shingles, flashing, ventilation & decking
-            </figcaption>
-          </figure>
-
-          <div className="structural-copy">
-            <span
-              className="section-tag"
-              style={{ color: activeTenant.brandColor }}
-            >
-              LOOK BEYOND THE SURFACE
+          <div className="proof-source">
+            <span>
+              SCG project photographs and published testimonial excerpts, reproduced
+              with permission.
             </span>
-            <h2>
-              There’s more protecting your home than the top layer you see.
+            <a
+              href="https://www.scgroofs.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View original projects &amp; testimonials{' '}
+              <span aria-hidden="true">↗</span>
+              <span className="proof-sr"> (opens in a new tab)</span>
+            </a>
+          </div>
+        </section>
+
+        {/* QUOTE INVITATION (Exact Codex reference/codex-original/index.html line 26) */}
+        <section
+          className="quote-invitation wrap"
+          aria-labelledby="quote-invite-title"
+        >
+          <div>
+            <p className="section-kicker">Let’s talk about your project</p>
+            <h2 id="quote-invite-title">
+              Less guesswork.
+              <br />A better first conversation.
             </h2>
             <p>
-              You don’t need to be a construction expert. Our background in structural diagnostics and exterior systems helps us spot hidden vulnerabilities before they become expensive interior repairs.
+              Not sure what to ask? The roof helper can guide you. Already have a
+              project in mind? Start with a few details for an estimate request.
             </p>
-            <ul className="structural-checklist">
-              <li>
-                <CheckCircle2 size={16} style={{ color: activeTenant.brandColor }} />
-                <span>
-                  <strong>Hidden rot & flashing transitions:</strong> Chimney step-flashing, valleys, and wall counter-flashing.
-                </span>
-              </li>
-              <li>
-                <CheckCircle2 size={16} style={{ color: activeTenant.brandColor }} />
-                <span>
-                  <strong>Attic ventilation & moisture balance:</strong> Stopping winter ice dams and summer heat bake.
-                </span>
-              </li>
-              <li>
-                <CheckCircle2 size={16} style={{ color: activeTenant.brandColor }} />
-                <span>
-                  <strong>Underlayment & plywood roof decking:</strong> Verifying solid nail-holding structure beneath every course.
-                </span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 3: PROJECT GALLERY & HOMEOWNER TESTIMONIALS (Manchester, Dover, Nottingham) */}
-      <section className="below-fold-section" id="proof">
-        <div className="below-fold-inner">
-          <div className="section-heading-block">
-            <span
-              className="section-tag"
-              style={{ color: activeTenant.brandColor }}
-            >
-              COMPLETED PROJECTS & HOMEOWNER PROOF
-            </span>
-            <h2>Good work speaks for itself. So do homeowners.</h2>
-            <p>
-              Real residential installations paired with verified homeowner feedback and our TOS-safe conversational review engine.
-            </p>
-          </div>
-
-          <div className="tiberius-proof-grid">
-            {defaultProjects.map((proj, idx) => (
-              <article key={idx} className="tiberius-project-card glass-panel">
-                <div className="project-img-wrap">
-                  <img src={proj.image} alt={proj.city} loading="lazy" />
-                  <span className="project-city-pill">
-                    <MapPin size={12} /> {proj.city}
-                  </span>
-                </div>
-                <div className="project-card-body">
-                  <div className="project-scope-label">{proj.scope}</div>
-                  <blockquote>
-                    <Quote
-                      size={14}
-                      style={{ color: activeTenant.brandColor }}
-                      className="quote-mark"
-                    />
-                    “{proj.quote}”
-                  </blockquote>
-                  <div className="project-author">{proj.author}</div>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 4: "LESS GUESSWORK" ROOF HELPER INVITATION + LOCAL FAQS */}
-      <section className="tiberius-helper-invite-section" id="faqs">
-        <div className="below-fold-inner">
-          <div className="tiberius-invite-banner glass-panel">
-            <div className="invite-copy">
-              <span
-                className="section-tag"
-                style={{ color: activeTenant.brandColor }}
+            <div className="invitation-actions">
+              <button
+                className="button"
+                type="button"
+                data-engage="quote"
+                onClick={() => openHelperModal('quote')}
               >
-                LET’S TALK ABOUT YOUR PROJECT
-              </span>
-              <h2>Less guesswork. A better first conversation.</h2>
-              <p>
-                Not sure what to ask? Alfred (our AI roof & exterior helper) can guide you, analyze up to 3 photos, and open a live thread with our estimator in seconds.
-              </p>
-              <div className="invite-actions">
-                <button
-                  type="button"
-                  className="btn-hero-primary"
-                  style={{ backgroundColor: activeTenant.brandColor }}
-                  onClick={() => openHelperModal('quote')}
+                Get a quote{' '}
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
                 >
-                  <span>Get a Quote (3-Step Wizard)</span>
-                  <ArrowUpRight size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="btn-hero-secondary glass-pill"
-                  onClick={() => openHelperModal('chat')}
+                  <path d="M5 12h14m-6-6 6 6-6 6" />
+                </svg>
+              </button>
+              <button
+                className="quiet-button"
+                type="button"
+                data-engage="chat"
+                onClick={() => openHelperModal('chat')}
+              >
+                Ask a question{' '}
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
                 >
-                  <MessageSquare size={15} />
-                  <span>Ask a Question</span>
-                </button>
-              </div>
+                  <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2A8.5 8.5 0 0 1 21 11.5Z" />
+                  <path d="M7 10h9M7 14h6" />
+                </svg>
+              </button>
             </div>
+            <small>Prices follow property measurement and business review.</small>
+          </div>
 
-            <div className="invite-helper-card">
-              <img
-                src={helperAvatarSrc}
-                alt="Alfred Assistant"
-                className="invite-avatar"
-              />
-              <div>
-                <span className="helper-greeting">Hi, homeowner.</span>
-                <h4>What can I help you figure out?</h4>
-                <button
-                  type="button"
-                  className="helper-start-link"
-                  style={{ color: activeTenant.brandColor }}
-                  onClick={() => openHelperModal('chat')}
-                >
-                  Start a live conversation ↗
-                </button>
-              </div>
+          <div className="helper-feature">
+            <img
+              src={helperAvatarSrc}
+              width="210"
+              height="210"
+              loading="lazy"
+              alt="Fictional cartoon roof helper wearing a red hard hat"
+            />
+            <div>
+              <span>Hi, homeowner.</span>
+              <p>
+                What can I help
+                <br />
+                you figure out?
+              </p>
+              <button
+                type="button"
+                data-engage="chat"
+                onClick={() => openHelperModal('chat')}
+              >
+                Start a conversation <span aria-hidden="true">↗</span>
+              </button>
+              <small>Ask the live roofing assistant</small>
             </div>
           </div>
+        </section>
 
-          {/* Local Service Area + Expandable FAQs */}
-          <div className="tiberius-local-faq-grid">
-            <div className="local-area-card glass-panel">
-              <span
-                className="section-tag"
-                style={{ color: activeTenant.brandColor }}
-              >
-                CLOSE TO HOME
-              </span>
-              <h3>{activeTenant.city}</h3>
+        {/* LOCAL QUESTIONS & FAQS (Exact Codex reference/codex-original/index.html line 27) */}
+        <section className="local-questions">
+          <div className="wrap local-questions-grid">
+            <div className="local-business" id="service-area">
+              <p className="section-kicker">Close to home</p>
+              <h2>
+                {isScg ? (
+                  <>
+                    Southern New Hampshire.
+                    <br />
+                    Starting in Hooksett.
+                  </>
+                ) : (
+                  <>
+                    Serving {activeTenant.city}.
+                    <br />
+                    Local &amp; responsive.
+                  </>
+                )}
+              </h2>
               <p>
-                Share your ZIP code or street address in our quote wizard to confirm immediate crew coverage and inspection windows.
+                {activeTenant.companyName} lists {activeTenant.city} as its service
+                region. Share your property location to confirm coverage.
               </p>
-              <div className="local-address-box">
+              <address>
                 <strong>{activeTenant.companyName}</strong>
                 <span>
                   {activeTenant.addressLine ||
-                    `Verified Service Territory · ${activeTenant.city}`}
+                    '146 Londonderry Turnpike, Unit 20, Hooksett, NH 03106'}
                 </span>
-                <span>{activeTenant.phoneDisplay}</span>
-              </div>
+                <span>{activeTenant.phoneDisplay} · published business reference</span>
+              </address>
             </div>
 
-            <div className="faq-accordion-column">
-              <h3 className="faq-heading">
-                <HelpCircle size={18} style={{ color: activeTenant.brandColor }} />
-                <span>Before you reach out — Common Questions</span>
-              </h3>
-              <div className="faq-list-stack">
-                {defaultFaqs.map((item, idx) => (
-                  <details
-                    key={idx}
-                    className="tiberius-faq-item glass-panel"
-                    open={idx === 0}
-                  >
-                    <summary>{item.q}</summary>
-                    <p>{item.a}</p>
-                  </details>
-                ))}
+            <div className="home-questions" id="faqs">
+              <h2>Before you reach out.</h2>
+              <div className="faq-list">
+                {isScg || !activeTenant.faqs?.length ? (
+                  <>
+                    <details>
+                      <summary>
+                        Can I start with a leak or a small repair?
+                        <span aria-hidden="true">+</span>
+                      </summary>
+                      <p>
+                        Yes. SCG lists roof inspection and repair. Tell us what you’ve
+                        noticed and when it began; you don’t need to diagnose the cause
+                        first.
+                      </p>
+                    </details>
+                    <details>
+                      <summary>
+                        Do you also handle gutters and attic ventilation?
+                        <span aria-hidden="true">+</span>
+                      </summary>
+                      <p>
+                        SCG’s current website lists gutter installation and cleaning, attic
+                        ventilation, and skylight work alongside roofing services. Choose the
+                        service that fits your question.
+                      </p>
+                    </details>
+                    <details>
+                      <summary>
+                        Where is SCG based?<span aria-hidden="true">+</span>
+                      </summary>
+                      <p>
+                        SCG publishes a Hooksett, New Hampshire address and describes its
+                        service region as Southern New Hampshire. Your exact location and
+                        scheduling still need confirmation.
+                      </p>
+                    </details>
+                    <details>
+                      <summary>
+                        Can I include photos?<span aria-hidden="true">+</span>
+                      </summary>
+                      <p>
+                        Yes. Add up to three JPG, PNG or WebP images to a demo inquiry.
+                        Please use sample photos without faces, addresses or other private
+                        information. Images are stored privately for the demo owner.
+                      </p>
+                    </details>
+                    <details>
+                      <summary>
+                        Can I get a price or book an inspection here?
+                        <span aria-hidden="true">+</span>
+                      </summary>
+                      <p>
+                        You can try a sample inspection request or open Tiberius’s live demo
+                        calendar. A booking on that calendar is with Tiberius, not SCG
+                        Roofing. Roofing prices and SCG appointments must be confirmed
+                        directly with the business.
+                      </p>
+                    </details>
+                    <details>
+                      <summary>
+                        Can I use a simple form?<span aria-hidden="true">+</span>
+                      </summary>
+                      <p>
+                        Yes. The request form works without AI usage. Demo inquiries go to
+                        Tiberius, not SCG Roofing.
+                      </p>
+                    </details>
+                    <details>
+                      <summary>
+                        Is this SCG’s live website?<span aria-hidden="true">+</span>
+                      </summary>
+                      <p>
+                        No. This is an independent Tiberius demonstration. The AI answers
+                        roofing questions, requests are saved for the demo owner, and the
+                        booking calendar is Michael’s Tiberius calendar. This site does not
+                        contact or schedule SCG Roofing.
+                      </p>
+                    </details>
+                  </>
+                ) : (
+                  activeTenant.faqs.map((faq) => (
+                    <details key={faq.q}>
+                      <summary>
+                        {faq.q}
+                        <span aria-hidden="true">+</span>
+                      </summary>
+                      <p>{faq.a}</p>
+                    </details>
+                  ))
+                )}
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Floating Tiberius Helper Launcher Pill (Bottom-Right) */}
-      <button
-        type="button"
-        className="tiberius-floating-launcher glass-panel"
-        onClick={() => openHelperModal('chat')}
-        title="Open Alfred Roof & Exterior Assistant"
-      >
-        <img src={helperAvatarSrc} alt="" className="launcher-avatar" />
-        <div className="launcher-text">
-          <span>Questions or photos?</span>
-          <strong style={{ color: activeTenant.brandColor }}>Ask Alfred ↗</strong>
-        </div>
-      </button>
+        {/* INQUIRY GRID (Exact Codex reference/codex-original/index.html line 28) */}
+        <section
+          className="section wrap inquiry-grid"
+          id="inquiry"
+          aria-labelledby="inquiry-title"
+        >
+          <div className="inquiry-copy">
+            <p className="eyebrow">Your roof. Your next step.</p>
+            <h2 id="inquiry-title">
+              Let’s get the
+              <br />
+              details down.
+            </h2>
+            <p>
+              Start with a question or tell us what you’ve noticed. The roof assistant
+              can help you put together a useful inquiry.
+            </p>
+            <div className="expectations">
+              <h3>A clearer conversation</h3>
+              <ul>
+                <li>Answers to roofing questions</li>
+                <li>A request with the useful project details</li>
+                <li>A real demo appointment with Tiberius</li>
+              </ul>
+            </div>
+            <p className="demo-note">
+              Independent Tiberius demo. Please use sample details. Nothing is sent to
+              SCG Roofing.
+            </p>
+          </div>
 
-      {/* Multi-Mode Tiberius Helper & 3-Step Quote Modal */}
-      <TiberiusHelperModal />
+          <div className="intake-shell live-intake-card">
+            <img
+              src={helperAvatarSrc}
+              width="110"
+              height="110"
+              loading="lazy"
+              alt="Fictional roof helper"
+            />
+            <h3>What can I help you figure out?</h3>
+            <p>
+              Ask about materials, leaks, ventilation or planning your next roof.
+            </p>
+            <button
+              className="button"
+              type="button"
+              data-engage="chat"
+              onClick={() => openHelperModal('chat')}
+            >
+              Ask the roof assistant ↗
+            </button>
+            <button
+              className="quiet-button"
+              type="button"
+              data-engage="quote"
+              onClick={() => openHelperModal('quote')}
+            >
+              Use the request form
+            </button>
+            <button
+              className="quiet-button"
+              type="button"
+              data-engage="booking"
+              onClick={() => openHelperModal('booking')}
+            >
+              Book a Tiberius demo
+            </button>
+          </div>
+        </section>
+
+        {/* NATIVE CODEX .demo-lab FOR TESTING 150-FRAME .WEBP FALLBACK & MISSED CALL RESCUE */}
+        <details className="demo-lab wrap">
+          <summary>
+            Tiberius Demo Lab · Video Scrubbing &amp; Missed-Call Rescue Controls
+          </summary>
+          <div>
+            <span>
+              Hero Engine:{' '}
+              <strong>
+                {activeVisualMode === 'video'
+                  ? '24fps MP4 Scroll Video (scrub.mp4)'
+                  : `150-Frame .webp / 3D CAD Fallback (Frame ${currentFrame + 1}/${TOTAL_FRAMES})`}
+              </strong>
+              {loadedWebpCount > 0 && ` · ${loadedWebpCount} .webp frames loaded`}
+            </span>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() =>
+                setEngineMode((prev) => (prev === 'video' ? 'wireframe' : 'video'))
+              }
+            >
+              Switch to{' '}
+              {activeVisualMode === 'video'
+                ? '150-Frame .webp / 3D CAD Fallback'
+                : '24fps MP4 Video'}
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => folderInputRef.current?.click()}
+            >
+              Load local .webp sequence
+            </button>
+            <input
+              ref={folderInputRef}
+              type="file"
+              accept="image/webp,image/png,image/jpeg"
+              multiple
+              hidden
+              onChange={handleCustomFramesUpload}
+            />
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => triggerMissedCallRescue()}
+            >
+              Simulate Missed-Call Rescue SMS ({activeTenant.phoneDisplay})
+            </button>
+          </div>
+        </details>
+      </main>
+
+      {/* FULL FOOTER (Exact Codex reference/codex-original/index.html line 28) */}
+      <footer className="full-footer">
+        <div className="wrap footer-grid">
+          <div>
+            <a
+              className="brand"
+              href="#hero"
+              aria-label={`${activeTenant.companyName} home`}
+            >
+              <svg viewBox="0 0 48 40" aria-hidden="true">
+                <path d="M3 30L24 8l21 22M12 30l12-12 12 12" />
+              </svg>
+              <span>
+                {brandMain}
+                <small>{brandSub}</small>
+              </span>
+            </a>
+            <p>
+              For the home under your roof.
+              <br />
+              {activeTenant.city}.
+            </p>
+            <small>
+              Independent redesign concept by Tiberius Smart Sites.
+              <br />
+              Hero and approach: AI-generated concepts.
+              <br />
+              Project gallery: authorized SCG photographs.
+            </small>
+          </div>
+
+          <div>
+            <h2>Explore</h2>
+            <a href="#services">Roofing &amp; home services</a>
+            <a href="#approach">Our approach</a>
+            <a href="#service-area">Service area</a>
+            <a href="#faqs">Common questions</a>
+          </div>
+
+          <div>
+            <h2>Published business details</h2>
+            <span>{activeTenant.phoneDisplay}</span>
+            <span>info@SCGRoofs.com</span>
+            <p>
+              146 Londonderry Turnpike, Unit 20
+              <br />
+              Hooksett, NH 03106
+            </p>
+            <a href="#inquiry">About this preview</a>
+            <a
+              href="#owner"
+              onClick={(e) => {
+                e.preventDefault()
+                setActiveView('backoffice')
+              }}
+            >
+              Owner sign-in <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </div>
+
+        <div className="wrap footer-bottom">
+          <span>TIBERIUS SMART SITES / SCG ROOFING CONCEPT</span>
+          <a
+            href="https://www.scgroofs.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Existing business website <span aria-hidden="true">↗</span>
+          </a>
+          <span>Demo inquiries go to Tiberius, not SCG.</span>
+        </div>
+      </footer>
+
+      {/* ENGAGEMENT TOOLS (Exact Codex reference/codex-original/index.html lines 28-46) */}
+      <div className="engagement-tools">
+        <button
+          className="helper-launcher"
+          type="button"
+          aria-label="Open roof assistant"
+          data-engage="chat"
+          aria-haspopup="dialog"
+          aria-controls="roof-helper"
+          onClick={() => openHelperModal('chat')}
+        >
+          <img src={helperAvatarSrc} width="64" height="64" alt="" />
+          <span>
+            Roof questions?
+            <strong>Let’s talk</strong>
+          </span>
+          <span className="launcher-icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2A8.5 8.5 0 0 1 21 11.5Z" />
+              <path d="M7 10h9M7 14h6" />
+            </svg>
+          </span>
+        </button>
+
+        <div className="mobile-contact-bar" aria-label="Quick contact">
+          <button
+            type="button"
+            data-engage="call"
+            onClick={() => openHelperModal('call')}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m7 3 3 5-3 2c1 3 4 6 7 7l2-3 5 3c0 3-2 5-5 4C9 19 5 15 3 8 2 5 4 3 7 3Z" />
+            </svg>
+            <span>Call us</span>
+          </button>
+          <button
+            type="button"
+            data-engage="text"
+            onClick={() => openHelperModal('text')}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2A8.5 8.5 0 0 1 21 11.5Z" />
+              <path d="M7 10h9M7 14h6" />
+            </svg>
+            <span>Text us</span>
+          </button>
+        </div>
+
+        <TiberiusHelperModal />
+      </div>
     </div>
   )
 }

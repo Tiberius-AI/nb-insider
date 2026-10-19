@@ -1,20 +1,13 @@
 import { useRef, useState } from 'react'
-import {
-  X,
-  MessageSquare,
-  FileText,
-  Calendar,
-  Phone,
-  Sparkles,
-  Camera,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  ExternalLink,
-  ArrowUpRight,
-} from 'lucide-react'
 import { usePlatform } from '../../context/usePlatform'
 import { optimizeUploadedPhotos } from '../../utils/photoOptimizer'
+
+const DEFAULT_CHIPS = [
+  'My roof is leaking',
+  'Architectural or 3-tab shingles?',
+  'What areas do you serve?',
+  'Book a demo appointment',
+]
 
 export default function TiberiusHelperModal() {
   const {
@@ -23,786 +16,1046 @@ export default function TiberiusHelperModal() {
     closeHelperModal,
     openHelperModal,
     submitHeroLead,
-    samplePhotos,
     setActiveView,
   } = usePlatform()
 
+  const helperAvatarSrc =
+    activeTenant.media?.helperAvatar || '/assets/roofing/helper-v1/avatar.webp'
+
+  const msgSeqRef = useRef(1)
   const [chatLog, setChatLog] = useState([
     {
-      role: 'assistant',
-      text: `Hi, I’m Alfred—your ${activeTenant.companyName} assistant in ${activeTenant.city}. Have a question, a leak, or a project in mind? Tell me what’s going on or attach up to 3 photos.`,
+      id: 'welcome-msg',
+      sender: 'AI',
+      author: 'Alfred · AI',
+      content:
+        'Hi, I’m your roof helper. Have a question, a leak, or a project in mind? Tell me what’s going on.',
+      status: 'Saved in demo session',
     },
   ])
   const [chatInput, setChatInput] = useState('')
   const [chatPhotos, setChatPhotos] = useState([])
-  const [chatStatus, setChatStatus] = useState('')
+  const [helperStatus, setHelperStatus] = useState('')
+  const [activeChips, setActiveChips] = useState(DEFAULT_CHIPS)
 
-  // 3-Step Quote Wizard State (from Tiberius widget.mjs)
-  const [quoteStep, setQuoteStep] = useState(0) // 0 | 1 | 2 | 3 (submitted review)
-  const [quoteService, setQuoteService] = useState(
+  // 3-Step Quote Wizard State (matching reference/codex-original/index.html & widget.mjs)
+  const [step, setStep] = useState(0) // 0 | 1 | 2
+  const [reviewState, setReviewState] = useState('form') // 'form' | 'review' | 'saved'
+  const [savedRef, setSavedRef] = useState('')
+  const [helperError, setHelperError] = useState('')
+
+  const tenantServices = activeTenant.pricingRules?.services || []
+  const defaultServiceOption =
     helperModal.preselectedService ||
-      activeTenant.pricingRules.services[0]?.name ||
-      'Roof Leak & Flashing Repair'
-  )
-  const [quoteDescription, setQuoteDescription] = useState('')
-  const [quoteUrgency, setQuoteUrgency] = useState('Water is coming in now')
-  const [quoteZip, setQuoteZip] = useState('03106')
-  const [quoteAddress, setQuoteAddress] = useState('146 Londonderry Tpke')
-  const [quotePropertyType, setQuotePropertyType] = useState('Single-family home')
-  const [quoteRoofAge, setQuoteRoofAge] = useState('10–20 years')
-  const [quotePhotos, setQuotePhotos] = useState([])
-  const [quoteName, setQuoteName] = useState('Alex Mercer')
-  const [quotePhone, setQuotePhone] = useState('(603) 555-0194')
-  const [quoteEmail, setQuoteEmail] = useState('alex.mercer@nhhome.io')
-  const [quoteWindow, setQuoteWindow] = useState('Afternoon')
-  const [quoteConsent, setQuoteConsent] = useState(true)
-  const [quoteError, setQuoteError] = useState('')
-  const [submittedSummary, setSubmittedSummary] = useState(null)
+    tenantServices[0]?.name ||
+    'Roof leak'
 
-  const chatPhotoInputRef = useRef(null)
-  const quotePhotoInputRef = useRef(null)
+  const [service, setService] = useState(defaultServiceOption)
+  const [lastPreselected, setLastPreselected] = useState(helperModal.preselectedService)
+  const [lastTenantId, setLastTenantId] = useState(activeTenant.id)
+  const [description, setDescription] = useState('')
+  const [urgency, setUrgency] = useState('Routine')
+  const [zip, setZip] = useState('03106')
+  const [address, setAddress] = useState('')
+  const [propertyType, setPropertyType] = useState('Single-family home')
+  const [roofAge, setRoofAge] = useState('Not sure')
+  const [quotePhotos, setQuotePhotos] = useState([])
+  const [name, setName] = useState('')
+  const [contactMethod, setContactMethod] = useState('email')
+  const [contactValue, setContactValue] = useState('')
+  const [intent, setIntent] = useState('Discuss an estimate')
+  const [contactWindow, setContactWindow] = useState('Flexible')
+  const [consent, setConsent] = useState(false)
+
+  const [calVisible, setCalVisible] = useState(false)
+
+  if (activeTenant.id !== lastTenantId) {
+    setLastTenantId(activeTenant.id)
+    setService(
+      helperModal.preselectedService ||
+        activeTenant.pricingRules?.services?.[0]?.name ||
+        'Roof leak'
+    )
+    setReviewState('form')
+    setStep(0)
+  }
+
+  if (helperModal.preselectedService !== lastPreselected) {
+    setLastPreselected(helperModal.preselectedService)
+    if (helperModal.preselectedService) {
+      setService(helperModal.preselectedService)
+    }
+    if (reviewState === 'saved') {
+      setReviewState('form')
+      setStep(0)
+    }
+  }
 
   if (!helperModal.open) return null
 
   const currentMode = helperModal.mode || 'chat'
 
-  const handleChatPhotoChange = async (e) => {
+  const goMode = (mode, nextService) => {
+    setHelperStatus('')
+    setHelperError('')
+    const chosenService = nextService || service
+    if (nextService) setService(nextService)
+    if (mode === 'quote' && reviewState === 'saved') {
+      setReviewState('form')
+      setStep(0)
+    }
+    openHelperModal(mode, chosenService)
+  }
+
+  const handleChatPhotoInput = async (e) => {
+    const rawFiles = Array.from(e.target.files || [])
+    e.target.value = ''
+    if (!rawFiles.length) return
+    if (
+      rawFiles.length + chatPhotos.length > 3 ||
+      rawFiles.some(
+        (f) =>
+          !['image/jpeg', 'image/png', 'image/webp'].includes(f.type) ||
+          f.size > 5 * 1024 * 1024
+      )
+    ) {
+      setHelperStatus(
+        'Choose up to three JPG, PNG or WebP photos, up to 5 MB each.'
+      )
+      return
+    }
     try {
-      setChatStatus('Optimizing photos (max 1280px JPEG via createImageBitmap)...')
-      const files = await optimizeUploadedPhotos(e.target.files, 3)
-      const mapped = files.map((f, idx) => ({
-        id: `chat-p-${Date.now()}-${idx}`,
-        label: f.name,
-        url: f.dataUrl,
-        estimatedRange: activeTenant.pricingRules.services[0]?.range || '$450 – $950',
+      const optimized = await optimizeUploadedPhotos(rawFiles, 3 - chatPhotos.length)
+      const seq = msgSeqRef.current++
+      const mapped = optimized.map((item, idx) => ({
+        id: `chat-photo-${seq}-${idx}`,
+        name: item.name,
+        url: item.dataUrl,
+        label: item.name,
+        estimatedRange:
+          activeTenant.pricingRules.services[0]?.range || '$450 – $950',
       }))
-      setChatPhotos(mapped)
-      setChatStatus(`${mapped.length} photo(s) optimized & ready for Vision AI scan.`)
+      setChatPhotos((prev) => [...prev, ...mapped].slice(0, 3))
+      setHelperStatus('')
     } catch (err) {
-      setChatStatus(err.message || 'Could not process photo')
+      setHelperStatus(err.message || 'Could not prepare photos.')
     }
   }
 
-  const handleQuotePhotoChange = async (e) => {
-    try {
-      setQuoteError('')
-      const files = await optimizeUploadedPhotos(e.target.files, 3)
-      const mapped = files.map((f, idx) => ({
-        id: `quote-p-${Date.now()}-${idx}`,
-        label: f.name,
-        url: f.dataUrl,
-      }))
-      setQuotePhotos(mapped)
-    } catch (err) {
-      setQuoteError(err.message || 'Could not process photo')
+  const sendChatReply = (rawText) => {
+    const text = String(rawText ?? chatInput).trim()
+    if (!text && chatPhotos.length === 0) return
+    if (text.length > 1000) {
+      setHelperStatus('Please keep the message under 1,000 characters.')
+      return
     }
-  }
 
-  const handleChatSubmit = (e) => {
-    e.preventDefault()
-    if (!chatInput.trim() && chatPhotos.length === 0) return
+    if (text === 'Book a demo appointment') {
+      goMode('booking')
+      return
+    }
 
-    const userText =
-      chatInput.trim() || `Uploaded ${chatPhotos.length} project photo(s) for inspection.`
-    const primarySvc = activeTenant.pricingRules.services[0]
+    const seq = msgSeqRef.current++
 
-    const reply = `Thanks! Based on ${activeTenant.companyName}'s ${
-      activeTenant.city
-    } guidelines, ${primarySvc.name} typically ranges ${
-      primarySvc.range
-    }. I have logged this conversation${
-      chatPhotos.length ? ` and your ${chatPhotos.length} photo(s)` : ''
-    } into our 3-Pane Back-Office so our estimator can follow up right away.`
-
-    setChatLog((prev) => [
-      ...prev,
-      { role: 'user', text: userText, photos: chatPhotos },
-      { role: 'assistant', text: reply },
-    ])
-
-    submitHeroLead({
-      question: userText,
+    const visitorMsg = {
+      id: `v-${seq}`,
+      sender: 'Visitor',
+      author: 'You',
+      content: text || 'Sharing photos…',
       photos: chatPhotos,
-      phone: '(603) 555-0199',
-      customerName: 'Homeowner Chat Lead',
-      zipCode: '03106',
-      serviceName: primarySvc.name,
-      sourceLabel: 'Roof Helper Chat',
+      status: 'Just now · Delivered',
+    }
+
+    const primarySvcName =
+      tenantServices[0]?.name || 'Roof Leak & Flashing Repair'
+    const replacementSvcName =
+      tenantServices[1]?.name || primarySvcName
+
+    let matchedSvc = service || primarySvcName
+    let aiReplyText = `Thanks for sharing those details. For ${activeTenant.companyName} in ${activeTenant.city}, we start by reviewing what you’ve noticed and confirming your location before scheduling an inspection.`
+    if (/leak|water|drip|stain|repair/i.test(text)) {
+      aiReplyText =
+        'If water is coming in around flashing, a vent pipe, or a valley, tell us where you see the stain and when it started. You can also add up to 3 photos or start a repair request.'
+      matchedSvc = primarySvcName
+      setService(primarySvcName)
+      setUrgency('Urgent')
+      if (!description) setDescription(text)
+    } else if (/shingle|3-tab|architectural|replace|install/i.test(text)) {
+      aiReplyText =
+        'Architectural shingles offer stronger wind resistance and dimensional depth compared to traditional 3-tab shingles, and we also inspect the underlayment, flashing, and attic ventilation underneath.'
+      matchedSvc = replacementSvcName
+      setService(replacementSvcName)
+    } else if (/area|serve|where|hooksett|nh/i.test(text)) {
+      aiReplyText = `${activeTenant.companyName} is based in ${activeTenant.city}. Share your 5-digit ZIP code in the request form to confirm coverage.`
+    }
+
+    const aiMsg = {
+      id: `ai-${seq}`,
+      sender: 'AI',
+      author: 'Alfred · AI',
+      content: aiReplyText,
+      status: 'Just now · Saved for owner review',
+    }
+
+    setChatLog((prev) => [...prev, visitorMsg, aiMsg])
+    submitHeroLead({
+      question: text || `Uploaded ${chatPhotos.length} project photo(s)`,
+      phone:
+        contactMethod === 'phone' && contactValue
+          ? contactValue
+          : activeTenant.phoneDisplay || '(603) 555-0194',
+      email: contactMethod === 'email' && contactValue ? contactValue : undefined,
+      customerName: name || 'Website Homeowner',
+      photo: chatPhotos[0] || null,
+      photos: chatPhotos,
+      zipCode: zip || '03106',
+      address: address || activeTenant.city,
+      serviceName: matchedSvc,
+      urgency,
+      propertyType,
+      roofAge,
+      preferredWindow: contactWindow,
+      sourceLabel: 'Alfred Roof Assistant Chat',
     })
 
     setChatInput('')
     setChatPhotos([])
-    setChatStatus('Synced live thread to 3-Pane Back-Office!')
+    setHelperStatus('Your message is saved for the demo owner in the Conversation Room.')
+    setActiveChips(['Add my project details', 'Book a Tiberius demo'])
   }
 
-  const handleQuoteStepSubmit = (e) => {
+  const handleChipClick = (chipLabel) => {
+    if (chipLabel === 'Add my project details') {
+      goMode('quote')
+      return
+    }
+    if (chipLabel === 'Book a Tiberius demo') {
+      goMode('booking')
+      return
+    }
+    sendChatReply(chipLabel)
+  }
+
+  const handleQuotePhotoInput = async (e) => {
+    const rawFiles = Array.from(e.target.files || [])
+    if (!rawFiles.length) return
+    if (
+      rawFiles.length > 3 ||
+      rawFiles.some(
+        (f) =>
+          !['image/jpeg', 'image/png', 'image/webp'].includes(f.type) ||
+          f.size > 5 * 1024 * 1024
+      )
+    ) {
+      setHelperError(
+        'Choose up to three JPG, PNG or WebP photos, up to 5 MB each.'
+      )
+      e.target.value = ''
+      return
+    }
+    try {
+      setHelperError('')
+      const optimized = await optimizeUploadedPhotos(rawFiles, 3)
+      const seq = msgSeqRef.current++
+      setQuotePhotos(
+        optimized.map((item, idx) => ({
+          id: `q-photo-${seq}-${idx}`,
+          name: item.name,
+          url: item.dataUrl,
+          label: item.name,
+        }))
+      )
+    } catch (err) {
+      setHelperError(err.message || 'Could not process selected photos.')
+    }
+  }
+
+  const handleQuoteFormSubmit = (e) => {
     e.preventDefault()
-    setQuoteError('')
+    setHelperError('')
 
-    if (quoteStep === 0) {
-      if (quoteDescription.trim().length < 3) {
-        setQuoteError('Tell us a little about what you noticed (at least 3 characters).')
+    if (step === 0) {
+      if (description.trim().length < 3) {
+        setHelperError('Please tell us briefly what you have noticed (at least 3 characters).')
         return
       }
-      setQuoteStep(1)
+      setStep(1)
       return
     }
 
-    if (quoteStep === 1) {
-      if (!/^[0-9]{5}$/.test(quoteZip.trim())) {
-        setQuoteError('Enter a valid 5-digit ZIP code (e.g., 03106 or 78704).')
+    if (step === 1) {
+      if (!/^[0-9]{5}$/.test(zip.trim())) {
+        setHelperError('Please enter a valid 5-digit property ZIP code (e.g., 03106).')
         return
       }
-      setQuoteStep(2)
+      setStep(2)
       return
     }
 
-    if (quoteStep === 2) {
-      if (!quoteName.trim()) {
-        setQuoteError('Please enter your name.')
+    if (step === 2) {
+      if (!name.trim()) {
+        setHelperError('Please enter your name.')
         return
       }
-      if (!quoteConsent) {
-        setQuoteError('Please agree to follow-up about this inquiry.')
+      if (!contactValue.trim()) {
+        setHelperError(
+          `Please enter your ${contactMethod === 'phone' ? 'phone number' : 'email address'}.`
+        )
         return
       }
-
-      const matchedSvc =
-        activeTenant.pricingRules.services.find((s) => s.name === quoteService) ||
-        activeTenant.pricingRules.services[0]
-
-      submitHeroLead({
-        question: quoteDescription,
-        photos: quotePhotos,
-        phone: quotePhone,
-        customerName: quoteName,
-        email: quoteEmail,
-        zipCode: quoteZip,
-        address: quoteAddress,
-        serviceName: matchedSvc.name,
-        urgency: quoteUrgency,
-        propertyType: quotePropertyType,
-        roofAge: quoteRoofAge,
-        preferredWindow: quoteWindow,
-        sourceLabel: '3-Step Guided Quote Wizard',
-      })
-
-      setSubmittedSummary({
-        service: matchedSvc.name,
-        range: matchedSvc.range,
-        urgency: quoteUrgency,
-        zip: quoteZip,
-        address: quoteAddress,
-        propertyType: quotePropertyType,
-        roofAge: quoteRoofAge,
-        name: quoteName,
-        contact: `${quotePhone} • ${quoteEmail}`,
-        window: quoteWindow,
-        photoCount: quotePhotos.length,
-      })
-      setQuoteStep(3)
+      if (!consent) {
+        setHelperError('Please confirm follow-up permission for this demo inquiry.')
+        return
+      }
+      setReviewState('review')
     }
+  }
+
+  const handleSaveLead = () => {
+    const seq = msgSeqRef.current++
+    const refCode = `TIB-03106-${String(seq).padStart(3, '0')}`
+    setSavedRef(refCode)
+    submitHeroLead({
+      question: `[${service}] ${description} (Next step: ${intent})`,
+      phone:
+        contactMethod === 'phone'
+          ? contactValue
+          : activeTenant.phoneDisplay || '(603) 555-0199',
+      email:
+        contactMethod === 'email'
+          ? contactValue
+          : `${name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@homeowner.io`,
+      customerName: name,
+      photo: quotePhotos[0] || null,
+      photos: quotePhotos,
+      zipCode: zip,
+      address: address ? `${address} (${zip})` : `ZIP ${zip}`,
+      serviceName: service,
+      urgency,
+      propertyType,
+      roofAge,
+      preferredWindow: contactWindow,
+      sourceLabel: '3-Step Quote Request',
+    })
+    setReviewState('saved')
+  }
+
+  function handleCloseModal() {
+    if (reviewState === 'saved') {
+      setReviewState('form')
+      setStep(0)
+    }
+    closeHelperModal()
   }
 
   return (
-    <div className="tiberius-modal-backdrop" onClick={closeHelperModal}>
-      <div
-        className="tiberius-helper-dialog glass-panel"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="tiberius-helper-title"
+    <div
+      className="codex-dialog-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleCloseModal()
+      }}
+    >
+      <dialog
+        className={`helper-dialog ${currentMode === 'booking' ? 'is-booking' : ''}`}
+        id="roof-helper"
+        open
+        aria-labelledby="helper-title"
+        aria-describedby="helper-disclosure"
       >
-        {/* Dialog Header */}
-        <header className="tiberius-helper-header">
-          <div className="helper-header-left">
-            <img
-              src={
-                activeTenant.media?.helperAvatar ||
-                '/assets/roofing/helper-v1/avatar.webp'
-              }
-              alt="Alfred Roof Assistant"
-              className="helper-avatar-img"
-            />
-            <div>
-              <h2 id="tiberius-helper-title">
-                Alfred · {activeTenant.companyName} Assistant
-              </h2>
-              <p>
-                Live AI Qualification, Up-to-3 Photo Pre-Scan & Instant Back-Office Sync
-              </p>
-            </div>
+        <header className="helper-header">
+          <img src={helperAvatarSrc} width="50" height="50" alt="" />
+          <div>
+            <h2 id="helper-title" tabIndex={-1}>
+              Your roof assistant
+            </h2>
+            <p>Roofing questions &amp; Tiberius demo appointments</p>
           </div>
           <button
+            className="helper-close"
             type="button"
-            className="helper-close-btn"
-            onClick={closeHelperModal}
-            aria-label="Close assistant"
+            aria-label="Close roof assistant"
+            onClick={handleCloseModal}
           >
-            <X size={18} />
+            ×
           </button>
         </header>
 
-        {/* 4-Mode Navigation Tabs (Recreated from Tiberius widget.mjs) */}
-        <nav className="tiberius-helper-modes" aria-label="Choose how to get help">
+        <p className="helper-disclosure" id="helper-disclosure">
+          Live Tiberius demo · Please use sample details. Not an SCG service.
+        </p>
+
+        <nav className="helper-modes" aria-label="Choose how to get help">
           <button
             type="button"
-            className={`mode-tab ${currentMode === 'chat' ? 'active' : ''}`}
-            onClick={() => openHelperModal('chat', quoteService)}
+            data-mode="chat"
+            aria-pressed={currentMode === 'chat'}
+            onClick={() => goMode('chat')}
           >
-            <MessageSquare size={14} />
-            <span>Ask a question</span>
+            Ask a question
           </button>
           <button
             type="button"
-            className={`mode-tab ${currentMode === 'quote' ? 'active' : ''}`}
-            onClick={() => {
-              setQuoteStep(0)
-              setSubmittedSummary(null)
-              openHelperModal('quote', quoteService)
-            }}
+            data-mode="quote"
+            aria-pressed={currentMode === 'quote'}
+            onClick={() => goMode('quote')}
           >
-            <FileText size={14} />
-            <span>Get a quote (3-Step)</span>
+            Get a quote
           </button>
           <button
             type="button"
-            className={`mode-tab ${currentMode === 'booking' ? 'active' : ''}`}
-            onClick={() => openHelperModal('booking', quoteService)}
+            data-mode="booking"
+            aria-pressed={currentMode === 'booking'}
+            onClick={() => goMode('booking')}
           >
-            <Calendar size={14} />
-            <span>Book inspection</span>
-          </button>
-          <button
-            type="button"
-            className={`mode-tab ${currentMode === 'text' ? 'active' : ''}`}
-            onClick={() => openHelperModal('text', quoteService)}
-          >
-            <Phone size={14} />
-            <span>Text us</span>
+            Book a demo
           </button>
         </nav>
 
-        {/* Modal Body */}
-        <div className="tiberius-helper-body">
-          {/* PANEL 1: ASK A QUESTION (AI CHAT + PHOTO PRE-SCAN) */}
-          {currentMode === 'chat' && (
-            <div className="helper-panel-chat">
-              <div className="helper-chat-log">
-                {chatLog.map((entry, idx) => (
-                  <div
-                    key={idx}
-                    className={`helper-chat-bubble ${
-                      entry.role === 'user' ? 'user-bubble' : 'assistant-bubble'
-                    }`}
-                  >
-                    <p>{entry.text}</p>
-                    {entry.photos?.length > 0 && (
-                      <div className="bubble-photo-strip">
-                        {entry.photos.map((p) => (
-                          <img key={p.id} src={p.url} alt={p.label} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+        <div className="helper-scroll">
+          {/* PANEL 1: CHAT */}
+          <section
+            data-panel="chat"
+            hidden={currentMode !== 'chat'}
+            aria-label="Roofing conversation"
+          >
+            <p className="helper-hint" id="helper-chat-mode">
+              AI mode · Alfred answers roofing questions.
+            </p>
 
-              {/* Service Quick Chips */}
-              <div className="helper-service-chips">
-                {activeTenant.pricingRules.services.slice(0, 4).map((svc, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className="helper-chip"
-                    onClick={() =>
-                      setChatInput(
-                        `We have a question about ${svc.name.toLowerCase()} in ${
-                          activeTenant.city
-                        } (${svc.range}).`
-                      )
-                    }
-                  >
-                    {svc.name}
-                  </button>
-                ))}
-              </div>
+            <div
+              className="helper-log"
+              id="helper-log"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+              aria-label="Roof assistant conversation"
+            >
+              {chatLog.map((m) => (
+                <div
+                  key={m.id}
+                  className={`helper-bubble${
+                    m.sender === 'Visitor'
+                      ? ' from-visitor'
+                      : m.sender === 'Owner'
+                        ? ' from-owner'
+                        : ''
+                  }`}
+                >
+                  <span className="message-author">{m.author}</span>
+                  <p className="message-content">{m.content}</p>
+                  {m.photos?.length > 0 && (
+                    <div className="conversation-photos">
+                      {m.photos.map((p) => (
+                        <div key={p.id} className="conversation-photo">
+                          <img src={p.url} alt={p.name} />
+                          <span>{p.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <small className="message-meta">{m.status}</small>
+                </div>
+              ))}
+            </div>
 
-              {/* Photo Attachment Toolbar */}
-              <div className="helper-photo-bar">
+            <div className="helper-chips" id="helper-chips">
+              {activeChips.map((chipLabel) => (
+                <button
+                  key={chipLabel}
+                  type="button"
+                  onClick={() => handleChipClick(chipLabel)}
+                >
+                  {chipLabel}
+                </button>
+              ))}
+            </div>
+
+            <div className="chat-photo-toolbar">
+              <label className="chat-add-photos" htmlFor="chat-photos">
+                ＋ Add photos
                 <input
-                  ref={chatPhotoInputRef}
+                  id="chat-photos"
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   multiple
-                  style={{ display: 'none' }}
-                  onChange={handleChatPhotoChange}
+                  onChange={handleChatPhotoInput}
                 />
-                <button
-                  type="button"
-                  className="btn-xs-outline"
-                  onClick={() => chatPhotoInputRef.current?.click()}
-                >
-                  <Camera size={13} /> ＋ Add up to 3 photos
-                </button>
-                <button
-                  type="button"
-                  className="btn-xs-outline"
-                  onClick={() => {
-                    setChatPhotos([samplePhotos[0]])
-                    setChatStatus('Attached sample chimney step-flashing photo.')
-                  }}
-                >
-                  <Sparkles size={13} /> Use Sample Roof Photo
-                </button>
-                {chatStatus && <span className="helper-status-note">{chatStatus}</span>}
-              </div>
-
-              {chatPhotos.length > 0 && (
-                <div className="helper-photo-previews">
-                  {chatPhotos.map((p) => (
-                    <div key={p.id} className="preview-chip">
-                      <img src={p.url} alt={p.label} />
-                      <span>{p.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <form className="helper-chat-form" onSubmit={handleChatSubmit}>
-                <textarea
-                  rows={2}
-                  placeholder="Tell us what’s happening, or add a photo..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                />
-                <button
-                  type="submit"
-                  className="btn-helper-send"
-                  style={{ backgroundColor: activeTenant.brandColor }}
-                >
-                  <span>Send</span>
-                  <ArrowRight size={15} />
-                </button>
-              </form>
+              </label>
+              <span>Up to 3 photos · Use sample images in this demo</span>
             </div>
-          )}
 
-          {/* PANEL 2: 3-STEP GUIDED QUOTE WIZARD (Recreated from widget.mjs) */}
-          {currentMode === 'quote' && (
-            <div className="helper-panel-quote">
-              {quoteStep < 3 ? (
-                <form onSubmit={handleQuoteStepSubmit} className="guided-quote-form">
-                  <div className="quote-step-indicator">
-                    <span style={{ color: activeTenant.brandColor }}>
-                      Step {quoteStep + 1} of 3 ·{' '}
-                      {quoteStep === 0
-                        ? 'Your project'
-                        : quoteStep === 1
-                        ? 'The property & photos'
-                        : 'How to follow up'}
-                    </span>
-                    <div className="step-dots">
-                      {[0, 1, 2].map((d) => (
-                        <span
-                          key={d}
-                          className={`step-dot ${d <= quoteStep ? 'active' : ''}`}
-                          style={
-                            d <= quoteStep
-                              ? { backgroundColor: activeTenant.brandColor }
-                              : undefined
-                          }
+            <div
+              id="chat-photo-previews"
+              className="chat-photo-previews"
+              aria-label="Photos ready to send"
+            >
+              {chatPhotos.map((file, index) => (
+                <div key={file.id} className="chat-photo-selection">
+                  <img src={file.url} alt={`Ready to send: ${file.name}`} />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setChatPhotos((prev) => prev.filter((_, i) => i !== index))
+                    }
+                  >
+                    Remove {file.name}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <form
+              id="helper-chat-form"
+              className="helper-chat-form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                sendChatReply(chatInput)
+              }}
+            >
+              <label className="visually-hidden" htmlFor="helper-message">
+                Your roofing question
+              </label>
+              <textarea
+                id="helper-message"
+                name="message"
+                placeholder="Tell us what’s happening, or add a photo…"
+                maxLength={1000}
+                rows={3}
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+              />
+              <button type="submit" aria-label="Send question">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14m-6-6 6 6-6 6" />
+                </svg>
+              </button>
+            </form>
+
+            <p className="helper-hint" id="helper-connection" role="status">
+              Conversation saved · synced with Owner Inbox
+            </p>
+
+            <button
+              className="helper-plain"
+              type="button"
+              data-mode="quote"
+              onClick={() => goMode('quote')}
+            >
+              Use the free request form
+            </button>
+          </section>
+
+          {/* PANEL 2: QUOTE (3-STEP WIZARD) */}
+          <section
+            data-panel="quote"
+            hidden={currentMode !== 'quote'}
+            aria-label="Quote request"
+          >
+            {reviewState === 'form' && (
+              <div id="quote-content">
+                <p className="quote-step" id="quote-step">
+                  Step {step + 1} of 3 ·{' '}
+                  {['Your project', 'The property', 'How to follow up'][step]}
+                </p>
+                <h3 id="quote-title" tabIndex={-1}>
+                  {
+                    [
+                      'Let’s start with your roof.',
+                      'A little about the property.',
+                      'How should we follow up?',
+                    ][step]
+                  }
+                </h3>
+                <p className="helper-intro">
+                  A few useful details for an estimate discussion. A price comes after
+                  measurement and review.
+                </p>
+
+                <form id="helper-quote-form" noValidate onSubmit={handleQuoteFormSubmit}>
+                  <fieldset data-step="0" hidden={step !== 0}>
+                    <legend className="visually-hidden">Your project</legend>
+                    <label>
+                      What can we help with?
+                      <select
+                        name="service"
+                        required
+                        value={service}
+                        onChange={(e) => setService(e.target.value)}
+                      >
+                        {tenantServices.map((svc) => (
+                          <option key={svc.name} value={svc.name}>
+                            {svc.name} ({svc.range})
+                          </option>
+                        ))}
+                        {activeTenant.id === 'scg-roofing' && (
+                          <>
+                            <option value="Roof leak">Roof inspection &amp; repair</option>
+                            <option value="Roof replacement">Roof installation</option>
+                            <option value="Attic ventilation">Attic ventilation</option>
+                            <option value="Gutters">Gutter installation &amp; cleaning</option>
+                            <option value="Skylights">Skylight installation &amp; repair</option>
+                            <option value="Decking / underlayment">
+                              Roof decking &amp; underlayment
+                            </option>
+                            <option value="Inspection">Inspection</option>
+                            <option value="Storm damage">Storm damage</option>
+                          </>
+                        )}
+                      </select>
+                    </label>
+                    <label>
+                      What have you noticed?
+                      <textarea
+                        name="description"
+                        rows={3}
+                        minLength={3}
+                        maxLength={1000}
+                        required
+                        placeholder="A leak over the kitchen, or a new roof you’re planning…"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      How urgent is it?
+                      <select
+                        name="urgency"
+                        value={urgency}
+                        onChange={(e) => setUrgency(e.target.value)}
+                      >
+                        <option value="Routine">Planning ahead / no active leak</option>
+                        <option value="Urgent">Water is coming in now</option>
+                        <option value="Needs review">I’m not sure</option>
+                      </select>
+                    </label>
+                  </fieldset>
+
+                  <fieldset data-step="1" hidden={step !== 1}>
+                    <legend className="visually-hidden">The property</legend>
+                    <label>
+                      Property ZIP code
+                      <input
+                        name="zip"
+                        spellCheck="false"
+                        inputMode="numeric"
+                        autoComplete="postal-code"
+                        pattern="[0-9]{5}"
+                        maxLength={5}
+                        required
+                        placeholder="03106"
+                        value={zip}
+                        onChange={(e) => setZip(e.target.value)}
+                      />
+                    </label>
+                    <p className="helper-hint">
+                      {activeTenant.companyName} confirms coverage for your exact location.
+                    </p>
+                    <label>
+                      Street address <span className="optional">(optional)</span>
+                      <input
+                        name="address"
+                        autoComplete="street-address"
+                        maxLength={200}
+                        placeholder="123 Example Lane"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                      />
+                    </label>
+                    <div className="helper-field-pair">
+                      <label>
+                        Property type
+                        <select
+                          name="propertyType"
+                          value={propertyType}
+                          onChange={(e) => setPropertyType(e.target.value)}
+                        >
+                          <option>Single-family home</option>
+                          <option>Multi-family home</option>
+                          <option>Other / not sure</option>
+                        </select>
+                      </label>
+                      <label>
+                        Approximate roof age
+                        <select
+                          name="roofAge"
+                          value={roofAge}
+                          onChange={(e) => setRoofAge(e.target.value)}
+                        >
+                          <option>Not sure</option>
+                          <option>Under 10 years</option>
+                          <option>10–20 years</option>
+                          <option>Over 20 years</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label className="helper-upload">
+                      Add photos <span className="optional">(optional)</span>
+                      <input
+                        id="helper-photos"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        onChange={handleQuotePhotoInput}
+                      />
+                    </label>
+                    <p className="helper-hint">
+                      Up to 3 photos, 5 MB each. Saved privately with your demo inquiry; use
+                      sample photos.
+                    </p>
+                    <div id="helper-photo-previews" className="helper-photos">
+                      {quotePhotos.map((p) => (
+                        <img
+                          key={p.id}
+                          src={p.url}
+                          alt={`Selected photo: ${p.name}`}
+                          width={80}
+                          height={64}
                         />
                       ))}
                     </div>
-                  </div>
+                  </fieldset>
 
-                  {quoteStep === 0 && (
-                    <div className="quote-fieldset">
-                      <h3>Let’s start with your roof or exterior project.</h3>
-                      <label className="quote-field">
-                        <span>What can we help with?</span>
-                        <select
-                          value={quoteService}
-                          onChange={(e) => setQuoteService(e.target.value)}
-                        >
-                          {activeTenant.pricingRules.services.map((svc, idx) => (
-                            <option key={idx} value={svc.name}>
-                              {svc.name} ({svc.range})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="quote-field">
-                        <span>What have you noticed?</span>
-                        <textarea
-                          rows={3}
-                          placeholder="A leak over the kitchen after rain, lifted flashing by the chimney, or an aging roof you are planning to replace..."
-                          value={quoteDescription}
-                          onChange={(e) => setQuoteDescription(e.target.value)}
-                        />
-                      </label>
-
-                      <label className="quote-field">
-                        <span>How urgent is it?</span>
-                        <select
-                          value={quoteUrgency}
-                          onChange={(e) => setQuoteUrgency(e.target.value)}
-                        >
-                          <option value="Water is coming in now (Urgent)">
-                            Water is coming in now (Urgent)
-                          </option>
-                          <option value="Planning ahead / no active leak">
-                            Planning ahead / no active leak
-                          </option>
-                          <option value="Needs inspection review">
-                            I’m not sure — needs a closer look
-                          </option>
-                        </select>
-                      </label>
-                    </div>
-                  )}
-
-                  {quoteStep === 1 && (
-                    <div className="quote-fieldset">
-                      <h3>Where is the property located?</h3>
-                      <div className="quote-grid-2">
-                        <label className="quote-field">
-                          <span>Property ZIP code</span>
-                          <input
-                            type="text"
-                            maxLength={5}
-                            value={quoteZip}
-                            onChange={(e) => setQuoteZip(e.target.value)}
-                            placeholder="03106"
-                          />
-                        </label>
-                        <label className="quote-field">
-                          <span>Street address (optional)</span>
-                          <input
-                            type="text"
-                            value={quoteAddress}
-                            onChange={(e) => setQuoteAddress(e.target.value)}
-                            placeholder="146 Londonderry Tpke"
-                          />
-                        </label>
-                      </div>
-
-                      <div className="quote-grid-2">
-                        <label className="quote-field">
-                          <span>Property type</span>
-                          <select
-                            value={quotePropertyType}
-                            onChange={(e) => setQuotePropertyType(e.target.value)}
-                          >
-                            <option>Single-family home</option>
-                            <option>Multi-family home</option>
-                            <option>Commercial / other</option>
-                          </select>
-                        </label>
-                        <label className="quote-field">
-                          <span>Approximate roof age</span>
-                          <select
-                            value={quoteRoofAge}
-                            onChange={(e) => setQuoteRoofAge(e.target.value)}
-                          >
-                            <option>Not sure</option>
-                            <option>Under 10 years</option>
-                            <option>10–20 years</option>
-                            <option>Over 20 years</option>
-                          </select>
-                        </label>
-                      </div>
-
-                      <div className="quote-field">
-                        <span>Add photos (up to 3 · auto-optimized via createImageBitmap)</span>
-                        <div className="helper-photo-bar">
-                          <input
-                            ref={quotePhotoInputRef}
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            multiple
-                            style={{ display: 'none' }}
-                            onChange={handleQuotePhotoChange}
-                          />
-                          <button
-                            type="button"
-                            className="btn-xs-outline"
-                            onClick={() => quotePhotoInputRef.current?.click()}
-                          >
-                            <Camera size={13} /> Choose Photos...
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-xs-outline"
-                            onClick={() => setQuotePhotos([samplePhotos[0], samplePhotos[1]])}
-                          >
-                            <Sparkles size={13} /> Attach 2 Sample Roof Photos
-                          </button>
-                        </div>
-                        {quotePhotos.length > 0 && (
-                          <div className="helper-photo-previews">
-                            {quotePhotos.map((p) => (
-                              <div key={p.id} className="preview-chip">
-                                <img src={p.url} alt={p.label} />
-                                <span>{p.label}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {quoteStep === 2 && (
-                    <div className="quote-fieldset">
-                      <h3>How should we follow up with your estimate?</h3>
-                      <div className="quote-grid-2">
-                        <label className="quote-field">
-                          <span>Your name</span>
-                          <input
-                            type="text"
-                            value={quoteName}
-                            onChange={(e) => setQuoteName(e.target.value)}
-                          />
-                        </label>
-                        <label className="quote-field">
-                          <span>Mobile phone (for SMS handshake)</span>
-                          <input
-                            type="tel"
-                            value={quotePhone}
-                            onChange={(e) => setQuotePhone(e.target.value)}
-                          />
-                        </label>
-                      </div>
-
-                      <div className="quote-grid-2">
-                        <label className="quote-field">
-                          <span>Email address</span>
-                          <input
-                            type="email"
-                            value={quoteEmail}
-                            onChange={(e) => setQuoteEmail(e.target.value)}
-                          />
-                        </label>
-                        <label className="quote-field">
-                          <span>Preferred time window</span>
-                          <select
-                            value={quoteWindow}
-                            onChange={(e) => setQuoteWindow(e.target.value)}
-                          >
-                            <option>Flexible</option>
-                            <option>Morning (8 AM – 12 PM)</option>
-                            <option>Afternoon (12 PM – 5 PM)</option>
-                          </select>
-                        </label>
-                      </div>
-
-                      <label className="quote-consent-row">
-                        <input
-                          type="checkbox"
-                          checked={quoteConsent}
-                          onChange={(e) => setQuoteConsent(e.target.checked)}
-                        />
-                        <span>
-                          I agree to follow-up about this inquiry via SMS/phone/email. No spam or marketing lists.
-                        </span>
-                      </label>
-                    </div>
-                  )}
-
-                  {quoteError && <div className="quote-error-banner">{quoteError}</div>}
-
-                  <div className="quote-wizard-actions">
-                    {quoteStep > 0 ? (
-                      <button
-                        type="button"
-                        className="btn-xs-outline"
-                        onClick={() => setQuoteStep((s) => s - 1)}
+                  <fieldset data-step="2" hidden={step !== 2}>
+                    <legend className="visually-hidden">How to follow up</legend>
+                    <label>
+                      Your name
+                      <input
+                        name="name"
+                        autoComplete="name"
+                        maxLength={100}
+                        required
+                        placeholder="Alex Example"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Preferred contact
+                      <select
+                        name="method"
+                        value={contactMethod}
+                        onChange={(e) => setContactMethod(e.target.value)}
                       >
-                        <ArrowLeft size={14} /> Back
-                      </button>
-                    ) : (
-                      <span />
-                    )}
-                    <button
-                      type="submit"
-                      className="btn-helper-send"
-                      style={{ backgroundColor: activeTenant.brandColor }}
-                    >
-                      <span>
-                        {quoteStep === 2
-                          ? 'Submit Quote Request & Sync to Back-Office'
-                          : 'Continue'}
+                        <option value="email">Email</option>
+                        <option value="phone">Phone call</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span id="helper-contact-label">
+                        {contactMethod === 'phone' ? 'Phone number' : 'Email address'}
                       </span>
-                      <ArrowRight size={15} />
+                      <input
+                        name="value"
+                        spellCheck="false"
+                        type={contactMethod === 'phone' ? 'tel' : 'email'}
+                        autoComplete={contactMethod === 'phone' ? 'tel' : 'email'}
+                        maxLength={200}
+                        required
+                        placeholder={
+                          contactMethod === 'phone' ? '(603) 555-0194' : 'alex@example.com'
+                        }
+                        value={contactValue}
+                        onChange={(e) => setContactValue(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Next step
+                      <select
+                        name="intent"
+                        value={intent}
+                        onChange={(e) => setIntent(e.target.value)}
+                      >
+                        <option>Discuss an estimate</option>
+                        <option>Request an inspection</option>
+                        <option>Speak with a person</option>
+                      </select>
+                    </label>
+                    <label>
+                      Preferred time to be contacted
+                      <select
+                        name="contactWindow"
+                        value={contactWindow}
+                        onChange={(e) => setContactWindow(e.target.value)}
+                      >
+                        <option>Flexible</option>
+                        <option>Morning</option>
+                        <option>Afternoon</option>
+                      </select>
+                    </label>
+                    <label className="helper-consent">
+                      <input
+                        name="consent"
+                        type="checkbox"
+                        required
+                        checked={consent}
+                        onChange={(e) => setConsent(e.target.checked)}
+                      />
+                      <span>
+                        I agree to follow-up about this inquiry by my chosen method. No
+                        marketing consent. This demo saves the request with Tiberius, not SCG
+                        Roofing. It does not send marketing messages.
+                      </span>
+                    </label>
+                  </fieldset>
+
+                  <p className="helper-error" id="helper-error" role="alert">
+                    {helperError}
+                  </p>
+
+                  <div className="quote-actions">
+                    <button
+                      className="helper-back"
+                      type="button"
+                      id="quote-back"
+                      hidden={step === 0}
+                      onClick={() => {
+                        setHelperError('')
+                        setStep((s) => Math.max(0, s - 1))
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button className="button" type="submit" id="quote-next">
+                      {step === 2 ? 'Review my request' : 'Continue'}{' '}
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M5 12h14m-6-6 6 6-6 6" />
+                      </svg>
                     </button>
                   </div>
                 </form>
-              ) : (
-                /* Step 4: Structured Review Summary DL (Recreated from widget.mjs #helper-review) */
-                <div className="quote-review-summary">
-                  <div className="review-badge-top">
-                    <CheckCircle2 size={18} className="text-emerald" />
-                    <strong>Request Saved & Synced to 3-Pane Back-Office!</strong>
-                  </div>
-                  <p className="review-sub">
-                    Alfred pre-scanned your project details and triggered an instant SMS handshake.
-                  </p>
-                  {submittedSummary && (
-                    <dl className="tiberius-review-dl">
-                      <div>
-                        <dt>Service & Ballpark</dt>
-                        <dd>
-                          {submittedSummary.service} ({submittedSummary.range})
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Urgency</dt>
-                        <dd>{submittedSummary.urgency}</dd>
-                      </div>
-                      <div>
-                        <dt>Property & Roof Age</dt>
-                        <dd>
-                          {submittedSummary.address} ({submittedSummary.zip}) ·{' '}
-                          {submittedSummary.propertyType} · {submittedSummary.roofAge}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Contact & Window</dt>
-                        <dd>
-                          {submittedSummary.name} · {submittedSummary.contact} (
-                          {submittedSummary.window})
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Attached Photos</dt>
-                        <dd>{submittedSummary.photoCount || 1} Vision AI frame(s)</dd>
-                      </div>
-                    </dl>
-                  )}
-                  <div className="review-action-buttons">
-                    <button
-                      type="button"
-                      className="btn-helper-send"
-                      style={{ backgroundColor: activeTenant.brandColor }}
-                      onClick={() => {
-                        closeHelperModal()
-                        setActiveView('backoffice')
-                      }}
-                    >
-                      <span>Inspect Live Thread in 3-Pane Back-Office</span>
-                      <ArrowUpRight size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-xs-outline"
-                      onClick={() => openHelperModal('booking', quoteService)}
-                    >
-                      Book Inspection Slot →
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* PANEL 3: BOOK INSPECTION (Cal.com + Instant Slot Picker) */}
-          {currentMode === 'booking' && (
-            <div className="helper-panel-booking">
-              <h3>Schedule a Roof & Structural Inspection</h3>
-              <p>
-                Reserve a time directly with {activeTenant.companyName} in{' '}
-                {activeTenant.city}, or open the live Tiberius Cal.com scheduler.
-              </p>
-              <div className="booking-quick-slots">
-                {[
-                  'Today, 2:30 PM – 4:00 PM',
-                  'Tomorrow, 9:00 AM – 10:30 AM',
-                  'Thursday, 1:00 PM – 2:30 PM',
-                ].map((slot) => (
+            {reviewState === 'review' && (
+              <div id="helper-review">
+                <h3>Your request, ready to review.</h3>
+                <p className="helper-intro">
+                  This demonstration sends the request to Tiberius, not SCG. It does not
+                  confirm a price or appointment.
+                </p>
+                <dl>
+                  <dt>Project</dt>
+                  <dd>
+                    {service}: {description}
+                  </dd>
+                  <dt>Location</dt>
+                  <dd>
+                    {zip}
+                    {address ? ` · ${address}` : ''}
+                  </dd>
+                  <dt>Contact</dt>
+                  <dd>
+                    {name} · {contactValue}
+                  </dd>
+                  <dt>Photos</dt>
+                  <dd>{quotePhotos.map((f) => f.name).join(', ') || 'None'}</dd>
+                  <dt>Permission</dt>
+                  <dd>Follow-up about this inquiry only; no marketing.</dd>
+                </dl>
+                <div className="quote-actions">
                   <button
-                    key={slot}
                     type="button"
-                    className="booking-slot-card"
                     onClick={() => {
-                      submitHeroLead({
-                        question: `Requested on-site inspection for slot: ${slot}`,
-                        phone: '(603) 555-0144',
-                        customerName: 'Inspection Booking Lead',
-                        zipCode: '03106',
-                        preferredWindow: slot,
-                        sourceLabel: 'Inspection Scheduler',
-                      })
+                      setReviewState('form')
+                      setStep(2)
+                    }}
+                  >
+                    Edit details
+                  </button>
+                  <button type="button" className="button" onClick={handleSaveLead}>
+                    Submit demo request
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {reviewState === 'saved' && (
+              <div id="helper-review">
+                <div className="request-saved">✓</div>
+                <h3>Your demo request is saved.</h3>
+                <p className="helper-intro">
+                  Tiberius can now review the project details. Nothing was sent to SCG, and no
+                  appointment has been booked.
+                </p>
+                <p className="helper-hint">Reference: {savedRef}</p>
+                <div className="quote-actions">
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      setReviewState('form')
+                      setStep(0)
+                      goMode('booking')
+                    }}
+                  >
+                    Choose a Tiberius demo time
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReviewState('form')
+                      setStep(0)
+                      setDescription('')
+                      setQuotePhotos([])
+                    }}
+                  >
+                    Start another request
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReviewState('form')
+                      setStep(0)
                       closeHelperModal()
                       setActiveView('backoffice')
                     }}
                   >
-                    <Calendar size={15} style={{ color: activeTenant.brandColor }} />
-                    <div>
-                      <strong>{slot}</strong>
-                      <span>Instant SMS confirmation + Back-Office sync</span>
-                    </div>
-                    <ArrowRight size={14} />
+                    View in Owner Inbox ↗
                   </button>
-                ))}
+                </div>
               </div>
-              <div className="cal-external-box">
-                <span>Prefer the external Tiberius Cal.com calendar?</span>
-                <a
-                  href={
-                    activeTenant.bookingUrl || 'https://cal.com/tiberius/contractor'
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-xs-outline"
-                >
-                  <span>Open Cal.com Scheduler</span>
-                  <ExternalLink size={13} />
-                </a>
-              </div>
-            </div>
-          )}
+            )}
+          </section>
 
-          {/* PANEL 4: TEXT US (SMS Handshake Preview) */}
-          {currentMode === 'text' && (
-            <div className="helper-panel-text">
-              <h3>A quick text. A useful start.</h3>
-              <p>
-                Send a pre-filled SMS to {activeTenant.companyName} (
-                {activeTenant.phoneDisplay}) and watch Alfred respond in real time:
-              </p>
-              <div className="sms-preview-box">
-                <small>Suggested SMS message</small>
-                <p>
-                  “Hi {activeTenant.companyName}, I need some help with my roof in{' '}
-                  {activeTenant.city} and would like to get an estimate.”
-                </p>
-              </div>
+          {/* PANEL 3: BOOKING */}
+          <section
+            data-panel="booking"
+            hidden={currentMode !== 'booking'}
+            aria-label="Inspection request"
+          >
+            <span className="panel-symbol">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 5h16v16H4zM8 2v6M16 2v6M4 10h16M8 14h3M14 14h3M8 18h3" />
+              </svg>
+            </span>
+            <h3>A time to talk.</h3>
+            <p className="helper-intro" id="booking-explanation">
+              Choose a real demo appointment with Michael at Tiberius. This does not book a
+              visit from SCG Roofing. The calendar shows available times in your selected time
+              zone.
+            </p>
+            <div id="booking-action">
               <button
                 type="button"
-                className="btn-helper-send"
-                style={{ backgroundColor: activeTenant.brandColor }}
-                onClick={() => {
-                  submitHeroLead({
-                    question: `Hi ${activeTenant.companyName}, I need some help with my roof in ${activeTenant.city} and would like to get an estimate.`,
-                    phone: '(603) 555-0188',
-                    customerName: 'Mobile SMS Lead',
-                    zipCode: '03106',
-                    sourceLabel: 'Text Us Quick-Launch',
-                  })
-                  closeHelperModal()
-                  setActiveView('backoffice')
-                }}
+                className="button"
+                disabled={calVisible}
+                onClick={() => setCalVisible(true)}
               >
-                <Phone size={15} />
-                <span>Send Text & Open in 3-Pane Room</span>
+                Show available demo times
+              </button>
+              <a
+                className="helper-plain"
+                href={activeTenant.bookingUrl || 'https://cal.com/tiberius/contractor'}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open the calendar in a new tab
+              </a>
+            </div>
+            {calVisible && (
+              <div id="cal-embed" className="cal-embed">
+                <iframe
+                  title="Tiberius Demo Calendar"
+                  src="https://cal.com/tiberius/contractor?embed=true&theme=light"
+                  loading="lazy"
+                />
+              </div>
+            )}
+            <p className="helper-hint">
+              This calendar books with Tiberius. Cal.com confirms the appointment; saving an
+              inquiry alone does not reserve a time.
+            </p>
+          </section>
+
+          {/* PANEL 4: TEXT */}
+          <section
+            data-panel="text"
+            hidden={currentMode !== 'text'}
+            aria-label="Business texting"
+          >
+            <span className="panel-symbol">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2A8.5 8.5 0 0 1 21 11.5Z" />
+                <path d="M7 10h9M7 14h6" />
+              </svg>
+            </span>
+            <h3>A quick text. A useful start.</h3>
+            <p className="helper-intro" id="text-explanation">
+              The demo texting number is not connected yet. You can leave a request or book a
+              Tiberius demo appointment.
+            </p>
+            <div className="sms-preview">
+              <small>Suggested message</small>
+              <p>Hi, I need some help with my roof and would like to get an estimate.</p>
+            </div>
+            <div id="text-action">
+              <button type="button" onClick={() => goMode('quote')}>
+                Use the request form
               </button>
             </div>
-          )}
+          </section>
+
+          {/* PANEL 5: CALL */}
+          <section data-panel="call" hidden={currentMode !== 'call'}>
+            <h3>Phone testing is coming next.</h3>
+            <p className="helper-intro">
+              The demo phone line is not connected yet. Ask the assistant a question or book a
+              Tiberius demo appointment.
+            </p>
+            <button
+              className="button"
+              type="button"
+              data-mode="booking"
+              onClick={() => goMode('booking')}
+            >
+              See demo booking options
+            </button>
+          </section>
+
+          <p className="helper-status" id="helper-status" role="status">
+            {helperStatus}
+          </p>
         </div>
-      </div>
+
+        <div className="helper-bottom">
+          <a href="#inquiry" onClick={(e) => { e.preventDefault(); closeHelperModal(); }}>
+            How this demo uses information
+          </a>
+          <span>Tiberius Smart Sites</span>
+        </div>
+      </dialog>
     </div>
   )
 }

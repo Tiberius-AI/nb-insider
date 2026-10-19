@@ -12,9 +12,11 @@ function PlatformShell() {
   return (
     <div
       className="platform-app-shell"
+      data-view={activeView}
       style={{
         '--brand': activeTenant.brandColor,
         '--brand-secondary': activeTenant.accentSecondary || activeTenant.brandColor,
+        '--accent': activeTenant.brandColor,
       }}
     >
       <PlatformTopBar />

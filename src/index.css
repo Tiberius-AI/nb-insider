@@ -7,7 +7,7 @@
   --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
-  --brand: #f97316;
+  --brand: #b72c28;
   --emerald: #10b981;
   --amber: #f59e0b;
   --rose: #ef4444;
@@ -16,35 +16,9 @@
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--bg-deep);
-  color: var(--text-primary);
-  font-family: var(--sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-}
-
 #root {
   width: 100%;
   min-height: 100vh;
-}
-
-button,
-input,
-select,
-textarea {
-  font-family: inherit;
-  color: inherit;
 }
 
 code,

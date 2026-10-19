@@ -27,3 +27,10 @@ When auditing `nb-insider`, `.git` had not been initialized during yesterday's s
 - Created `AGENTS.md` with `CODEX_TIER="plus"`, Quota & Role Split, and Strict Visual Guardrails.
 - Created `.agents/agents/foreman.md` with `permissionMode: acceptEdits`, `commandExecutionPolicy: auto`, Low-Token Codex Review Gate, and 120s/15m token pacing rules.
 - Updated `BLUEPRINT.md` and initialized `TASK_QUEUE.md` with **Task #1** set to side-by-side review and restoration of Codex's original site design vs. AG's redesign.
+
+---
+
+## [2026-10-18 20:13 CDT] Milestone 1 / Task #1 Complete: Restored Codex Original Site Design
+- Restored Codex's 6 original CSS stylesheets (`public/packages/site-components/*.css`, `public/packages/live-site/live.css`) and exact DOM structure in `ClientWebsiteView.jsx` and `TiberiusHelperModal.jsx`, removing the unprompted dark-mode HUD redesign from the client site.
+- Ran Codex Astra 6 Surgical Review Gate (`REVIEW_NOTES.md`) and resolved all 5 flagged items: restored `submitHeroLead` payload contract (`email`, `zipCode`, `serviceName`, `propertyType`, `roofAge`, `preferredWindow`), fixed `customFramesRef.current` array passing to `renderScrubFrame`, added responsive spacing so `.contextual-ai-dock-wrapper` never overlaps `.hero-bottom`, reset `reviewState` when reopening/closing the quote wizard, and preserved dynamic tenant services/projects/FAQs for non-SCG tenants.
+- Verified `npm run lint` (0 warnings, 0 errors) and `npm run build` (450ms) and committed as `feat(argon+astra): restore Codex original site design and resolve review notes`.
