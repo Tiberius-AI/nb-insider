@@ -140,12 +140,34 @@ export function PlatformProvider({ children }) {
     const cleanPhone = phone?.trim() || activeTenant.phoneDisplay || '(603) 555-0192'
     const name = customerName?.trim() || 'Alex Mercer'
     const zip = zipCode?.trim() || '03106'
-    const matchedService =
-      activeTenant.pricingRules.services.find((s) => s.name === serviceName) ||
-      activeTenant.pricingRules.services[0]
-
     const allInputPhotos =
       photos.length > 0 ? photos : photo ? [photo] : []
+    const requestedService = (
+      serviceName ||
+      allInputPhotos[0]?.serviceMatch ||
+      question ||
+      ''
+    )
+      .toLowerCase()
+      .trim()
+    const matchedService =
+      activeTenant.pricingRules.services.find((s) => s.name === serviceName) ||
+      activeTenant.pricingRules.services.find((s) =>
+        requestedService
+          ? s.name.toLowerCase().includes(requestedService) ||
+            requestedService.includes(s.name.toLowerCase()) ||
+            s.name
+              .toLowerCase()
+              .split(/\s+/)
+              .some(
+                (word) =>
+                  word.length > 3 &&
+                  word !== 'roof' &&
+                  requestedService.includes(word)
+              )
+          : false
+      ) ||
+      activeTenant.pricingRules.services[0]
 
     const resolvedPhotoUrl =
       allInputPhotos[0]?.url ||

@@ -34,3 +34,10 @@ When auditing `nb-insider`, `.git` had not been initialized during yesterday's s
 - Restored Codex's 6 original CSS stylesheets (`public/packages/site-components/*.css`, `public/packages/live-site/live.css`) and exact DOM structure in `ClientWebsiteView.jsx` and `TiberiusHelperModal.jsx`, removing the unprompted dark-mode HUD redesign from the client site.
 - Ran Codex Astra 6 Surgical Review Gate (`REVIEW_NOTES.md`) and resolved all 5 flagged items: restored `submitHeroLead` payload contract (`email`, `zipCode`, `serviceName`, `propertyType`, `roofAge`, `preferredWindow`), fixed `customFramesRef.current` array passing to `renderScrubFrame`, added responsive spacing so `.contextual-ai-dock-wrapper` never overlaps `.hero-bottom`, reset `reviewState` when reopening/closing the quote wizard, and preserved dynamic tenant services/projects/FAQs for non-SCG tenants.
 - Verified `npm run lint` (0 warnings, 0 errors) and `npm run build` (450ms) and committed as `feat(argon+astra): restore Codex original site design and resolve review notes`.
+
+---
+
+## [2026-10-18 20:17 CDT] Milestone 2 / Task #2 Complete: Token-Aligned Embedded Contextual AI Dock
+- Restyled `src/components/client/ContextualAIDock.jsx` and its `.contextual-ai-dock` / `.dock-popover` rules in `src/App.css` to match Codex's warm editorial surface (`rgba(255, 254, 250, 0.96)`), border (`#dcdfe1` / `#bfc7ce`), pill (`#f7f1ec` / `#fcf4f3`), and accent (`var(--accent, #b72c28)`) design tokens.
+- Added multi-photo (`up to 3 photos`) client-side `createImageBitmap` JPEG optimization in `ContextualAIDock.jsx`, inline upload error banner, and keyword/chip service matching in `PlatformContext.jsx` (`submitHeroLead`).
+- Verified `npm run lint` (0 warnings, 0 errors) and `npm run build` (445ms).

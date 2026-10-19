@@ -26,44 +26,65 @@ export default function ContextualAIDock() {
   const [question, setQuestion] = useState('')
   const [phone, setPhone] = useState('')
   const [zipCode, setZipCode] = useState('')
-  const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [selectedService, setSelectedService] = useState('')
+  const [selectedPhotos, setSelectedPhotos] = useState([])
+  const [uploadError, setUploadError] = useState('')
   const [showSamplePicker, setShowSamplePicker] = useState(false)
   const [handshakeSuccess, setHandshakeSuccess] = useState(false)
 
   const fileInputRef = useRef(null)
+  const uploadSeqRef = useRef(1)
 
   const handleFileUpload = async (e) => {
     const files = e.target.files
     if (!files?.length) return
+    setUploadError('')
     try {
       const optimized = await optimizeUploadedPhotos(files, 3)
-      const first = optimized[0]
-      if (!first) return
-      const primarySvc = activeTenant.pricingRules.services[0]
-      setSelectedPhoto({
-        id: `upload-${Date.now()}`,
-        label: `${first.name} (${first.width}×${first.height} JPEG)`,
-        serviceMatch: primarySvc.name,
-        estimatedRange: primarySvc.range,
-        estimatedValue: primarySvc.avgValue,
-        urgency: primarySvc.urgency,
-        visionSummary: `Vision AI analyzed "${first.name}" (resized via createImageBitmap to ${first.width}×${first.height}): matched ${primarySvc.name} (${primarySvc.range} in ${activeTenant.city}).`,
-        url: first.dataUrl,
+      if (!optimized.length) return
+      const primarySvc =
+        activeTenant.pricingRules.services.find(
+          (s) => s.name === selectedService
+        ) || activeTenant.pricingRules.services[0]
+      const mapped = optimized.map((item) => {
+        const seq = uploadSeqRef.current++
+        return {
+          id: `upload-${seq}`,
+          name: item.name,
+          label: `${item.name} (${item.width}×${item.height} JPEG)`,
+          serviceMatch: primarySvc.name,
+          estimatedRange: primarySvc.range,
+          estimatedValue: primarySvc.avgValue,
+          urgency: primarySvc.urgency,
+          visionSummary: `Vision AI analyzed "${item.name}" (resized via createImageBitmap to ${item.width}×${item.height}): matched ${primarySvc.name} (${primarySvc.range} in ${activeTenant.city}).`,
+          url: item.dataUrl,
+          dataUrl: item.dataUrl,
+        }
       })
+      setSelectedPhotos(mapped)
       setShowSamplePicker(false)
-    } catch {
-      // ignore invalid file
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : 'Please choose a JPG, PNG, or WebP photo under 8 MB.'
+      )
     }
   }
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    const primaryPhoto = selectedPhotos[0] || null
     submitHeroLead({
       question,
-      photo: selectedPhoto,
+      photo: primaryPhoto,
+      photos: selectedPhotos,
       phone: phone || activeTenant.phoneDisplay || '(603) 639-1842',
       customerName: 'Alex Mercer',
       zipCode: zipCode || '03106',
+      serviceName:
+        selectedService ||
+        primaryPhoto?.serviceMatch ||
+        activeTenant.pricingRules.services[0]?.name,
+      urgency: primaryPhoto?.urgency,
       sourceLabel: 'Embedded Hero AI Dock',
     })
     setHandshakeSuccess(true)
@@ -72,111 +93,137 @@ export default function ContextualAIDock() {
   const quickPrompts = activeTenant.pricingRules.services
     .slice(0, 3)
     .map((s) => ({
+      serviceName: s.name,
       label: s.name.split(' ').slice(0, 3).join(' '),
       prompt: `Need a ballpark quote for ${s.name.toLowerCase()} in ${activeTenant.city}.`,
     }))
 
+  const primaryPhoto = selectedPhotos[0] || null
+
   return (
     <div className="contextual-ai-dock-wrapper">
       {/* Sample Photo & Vision AI Preview Popover */}
-      {(showSamplePicker || selectedPhoto) && (
-        <div className="dock-popover glass-panel">
-          {selectedPhoto ? (
+      {(showSamplePicker || primaryPhoto || uploadError) && (
+        <div className="dock-popover">
+          {uploadError && (
+            <div className="dock-upload-error" role="alert">
+              <span>{uploadError}</span>
+              <button
+                type="button"
+                className="icon-close-btn"
+                onClick={() => setUploadError('')}
+                aria-label="Dismiss error"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+          {primaryPhoto ? (
             <div className="selected-photo-preview">
-              <img
-                src={selectedPhoto.url}
-                alt={selectedPhoto.label}
-                className="dock-thumb"
-              />
+              <div className="dock-thumb-stack">
+                {selectedPhotos.map((p) => (
+                  <img
+                    key={p.id}
+                    src={p.url}
+                    alt={p.label}
+                    className="dock-thumb"
+                  />
+                ))}
+              </div>
               <div className="dock-photo-meta">
                 <div className="dock-photo-badge">
                   <Sparkles size={12} />
-                  <span>VISION AI PRE-SCAN READY</span>
+                  <span>
+                    VISION AI PRE-SCAN READY ({selectedPhotos.length} PHOTO
+                    {selectedPhotos.length === 1 ? '' : 'S'})
+                  </span>
                 </div>
-                <div className="dock-photo-title">{selectedPhoto.label}</div>
+                <div className="dock-photo-title">{primaryPhoto.label}</div>
                 <div className="dock-photo-sub">
                   Est. Local Range:{' '}
-                  <strong style={{ color: activeTenant.brandColor }}>
-                    {selectedPhoto.estimatedRange}
-                  </strong>{' '}
-                  • {selectedPhoto.urgency}
+                  <strong>{primaryPhoto.estimatedRange}</strong> •{' '}
+                  {primaryPhoto.urgency}
                 </div>
               </div>
               <button
                 type="button"
                 className="dock-photo-remove"
-                onClick={() => setSelectedPhoto(null)}
-                title="Remove photo"
+                onClick={() => setSelectedPhotos([])}
+                title="Remove photo(s)"
+                aria-label="Remove attached photos"
               >
                 <X size={15} />
               </button>
             </div>
           ) : (
-            <div className="sample-picker-body">
-              <div className="sample-picker-header">
-                <span>
-                  <Camera size={14} /> Upload a photo (auto-resized via{' '}
-                  <code>createImageBitmap</code>) or test with a sample Vision AI inspection frame:
-                </span>
-                <button
-                  type="button"
-                  className="icon-close-btn"
-                  onClick={() => setShowSamplePicker(false)}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="sample-picker-grid">
-                <button
-                  type="button"
-                  className="sample-upload-device-btn"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <ImageIcon size={16} />
-                  <span>Choose Image File...</span>
-                </button>
-                {samplePhotos.map((sample) => (
+            showSamplePicker && (
+              <div className="sample-picker-body">
+                <div className="sample-picker-header">
+                  <span>
+                    <Camera size={14} /> Upload up to 3 photos (auto-resized via{' '}
+                    <code>createImageBitmap</code>) or select a sample inspection
+                    frame:
+                  </span>
                   <button
-                    key={sample.id}
                     type="button"
-                    className="sample-photo-chip"
-                    onClick={() => {
-                      setSelectedPhoto(sample)
-                      setShowSamplePicker(false)
-                    }}
+                    className="icon-close-btn"
+                    onClick={() => setShowSamplePicker(false)}
+                    aria-label="Close photo picker"
                   >
-                    <img src={sample.url} alt={sample.label} />
-                    <div>
-                      <div className="chip-title">{sample.label}</div>
-                      <div className="chip-range">{sample.estimatedRange}</div>
-                    </div>
+                    <X size={14} />
                   </button>
-                ))}
+                </div>
+                <div className="sample-picker-grid">
+                  <button
+                    type="button"
+                    className="sample-upload-device-btn"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <ImageIcon size={16} />
+                    <span>Choose Up to 3 Photos...</span>
+                  </button>
+                  {samplePhotos.map((sample) => (
+                    <button
+                      key={sample.id}
+                      type="button"
+                      className="sample-photo-chip"
+                      onClick={() => {
+                        setSelectedPhotos([sample])
+                        setSelectedService(sample.serviceMatch || '')
+                        setShowSamplePicker(false)
+                      }}
+                    >
+                      <img src={sample.url} alt={sample.label} />
+                      <div>
+                        <div className="chip-title">{sample.label}</div>
+                        <div className="chip-range">{sample.estimatedRange}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )
           )}
         </div>
       )}
 
-      {/* Main Fixed Glassmorphic Contextual AI Dock */}
-      <form className="contextual-ai-dock glass-panel" onSubmit={handleSubmit}>
+      {/* Embedded Contextual AI Dock — Aligned with Codex Editorial Design Tokens */}
+      <form className="contextual-ai-dock" onSubmit={handleSubmit}>
         <input
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp"
+          multiple
           style={{ display: 'none' }}
           onChange={handleFileUpload}
         />
 
         <div className="dock-top-strip">
           <div className="dock-status-indicator">
-            <span
-              className="pulse-dot"
-              style={{ backgroundColor: activeTenant.brandColor }}
-            />
+            <span className="pulse-dot" />
             <span>
-              <strong>Alfred AI + {activeTenant.companyName} Dispatch</strong> • Instant{' '}
-              {activeTenant.city} Price & Vision Analysis
+              <strong>Alfred AI · {activeTenant.companyName}</strong> — Instant{' '}
+              {activeTenant.city} Price &amp; Vision Scope
             </span>
           </div>
 
@@ -186,7 +233,10 @@ export default function ContextualAIDock() {
                 key={idx}
                 type="button"
                 className="dock-chip"
-                onClick={() => setQuestion(qp.prompt)}
+                onClick={() => {
+                  setQuestion(qp.prompt)
+                  setSelectedService(qp.serviceName)
+                }}
               >
                 {qp.label}
               </button>
@@ -194,7 +244,7 @@ export default function ContextualAIDock() {
             <button
               type="button"
               className="dock-chip dock-chip-wizard"
-              onClick={() => openHelperModal('quote')}
+              onClick={() => openHelperModal('quote', selectedService)}
               title="Open 3-Step Guided Quote Request Wizard"
             >
               <FileText size={11} /> 3-Step Wizard ↗
@@ -205,14 +255,11 @@ export default function ContextualAIDock() {
         <div className="dock-main-controls">
           {/* 1. Project Question Input */}
           <div className="dock-input-group question-group">
-            <Sparkles
-              size={16}
-              className="dock-field-icon"
-              style={{ color: activeTenant.brandColor }}
-            />
+            <Sparkles size={15} className="dock-field-icon" />
             <input
               type="text"
               className="dock-text-input"
+              aria-label="Ask a project question or describe damage"
               placeholder={`Ask a ${activeTenant.niche.toLowerCase()} question or describe damage...`}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
@@ -222,17 +269,14 @@ export default function ContextualAIDock() {
           {/* 2. Snap / Upload Photo Button */}
           <button
             type="button"
-            className={`dock-photo-btn ${selectedPhoto ? 'has-photo' : ''}`}
+            className={`dock-photo-btn ${primaryPhoto ? 'has-photo' : ''}`}
             onClick={() => setShowSamplePicker((prev) => !prev)}
-            style={
-              selectedPhoto
-                ? { borderColor: activeTenant.brandColor }
-                : undefined
-            }
           >
-            <Camera size={16} />
+            <Camera size={15} />
             <span>
-              {selectedPhoto ? '📷 Photo Attached' : '📷 Snap / Upload Photo'}
+              {primaryPhoto
+                ? `📷 ${selectedPhotos.length} Photo${selectedPhotos.length === 1 ? '' : 's'} Attached`
+                : '📷 Snap / Upload Photo'}
             </span>
           </button>
 
@@ -242,6 +286,7 @@ export default function ContextualAIDock() {
             <input
               type="text"
               className="dock-text-input"
+              aria-label="ZIP code"
               placeholder="ZIP (03106)"
               value={zipCode}
               onChange={(e) => setZipCode(e.target.value)}
@@ -251,10 +296,11 @@ export default function ContextualAIDock() {
 
           {/* 3. Mobile Number Input for Instant SMS Handshake */}
           <div className="dock-input-group phone-group">
-            <Phone size={15} className="dock-field-icon" />
+            <Phone size={14} className="dock-field-icon" />
             <input
               type="tel"
               className="dock-text-input"
+              aria-label="Mobile number for instant SMS quote"
               placeholder="Mobile # for instant SMS quote"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -262,12 +308,8 @@ export default function ContextualAIDock() {
           </div>
 
           {/* Submit Handshake CTA */}
-          <button
-            type="submit"
-            className="dock-submit-btn"
-            style={{ backgroundColor: activeTenant.brandColor }}
-          >
-            <Send size={15} />
+          <button type="submit" className="dock-submit-btn">
+            <Send size={14} />
             <span>Instant SMS Quote</span>
           </button>
         </div>
@@ -275,9 +317,10 @@ export default function ContextualAIDock() {
         {handshakeSuccess && (
           <div className="dock-Confirmation-bar">
             <div className="dock-confirm-left">
-              <CheckCircle2 size={15} className="text-emerald" />
+              <CheckCircle2 size={15} className="dock-confirm-icon" />
               <span>
-                <strong>SMS Handshake Sent!</strong> Vision AI pre-analysis & quote thread created in the Back-Office.
+                <strong>SMS Handshake Sent!</strong> Vision AI pre-analysis &amp;
+                quote thread saved to the Back-Office Inbox.
               </span>
             </div>
             <button

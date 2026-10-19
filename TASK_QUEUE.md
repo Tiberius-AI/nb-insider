@@ -9,12 +9,12 @@
   - Stage the diff and run the Codex Astra 6 review gate (`REVIEW_NOTES.md`) to lock in the visual look before any further UI work.
 
 ## Milestone 2: Embedded Contextual AI Photo/SMS Dock (Token-Aligned)
-- [WIP: ARGON] **Task #2: Align Embedded Contextual AI Dock with Codex Design Tokens**
+- [x] **Task #2: Align Embedded Contextual AI Dock with Codex Design Tokens**
   - Style `src/components/client/ContextualAIDock.jsx` to match Codex's original surface, border, button, and typography tokens from `reference/codex-original/packages/site-components/styles.css` and `conversion-design.css`.
   - Verify `📷 Snap / Upload Photo` client-side `createImageBitmap` compression (`src/utils/photoOptimizer.js`), project question input, and mobile number SMS handshake into `PlatformContext.jsx`.
 
 ## Milestone 3: 3-Pane Unified Conversation Room & `[ 🤖 AI Autopilot | ✋ Take Over ]` Toggle
-- [ ] **Task #3: Harmonize 3-Pane Conversation Room UI with Codex Owner Inbox Aesthetic**
+- [WIP: ARGON] **Task #3: Harmonize 3-Pane Conversation Room UI with Codex Owner Inbox Aesthetic**
   - Align `ThreadQueue.jsx` (25%), `UnifiedTimeline.jsx` (50%), and `JobSummaryCard.jsx` (25%) with Codex's clean `reference/codex-original/packages/live-site/live.css` visual language while preserving the 3-pane layout.
   - Verify the `[ 🤖 AI Autopilot: ON | ✋ Take Over ]` header toggle, automatic human-reply Autopilot shutoff guardrail, Alfred draft approval card, Co-Pilot Whisper ("Suggest Reply" + Voice-Note-to-Polished-SMS), and click-to-enlarge photo lightbox.
 
