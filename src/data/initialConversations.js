@@ -133,6 +133,7 @@ export const INITIAL_THREADS = [
     channels: ['Webchat', 'SMS'],
     primaryChannel: 'SMS',
     aiStatus: 'ready_for_quote', // 'qualifying' | 'ready_for_quote' | 'needs_human'
+    opportunityStage: 'quote_sent', // 'new_lead' | 'qualifying' | 'quote_sent' | 'appointment_booked' | 'job_won'
     aiAutopilot: true,
     handoffMode: 'AI', // 'AI' (Alfred replies) | 'Draft' (Alfred drafts for approval) | 'Human' (I'll handle it)
     alfredDraft: {
@@ -181,6 +182,13 @@ export const INITIAL_THREADS = [
         channel: 'SMS',
         timestamp: '10:14 AM',
         text: 'Hi Marcus! This is Alfred, the SCG Roofing assistant in Hooksett. I just ran our Vision AI scan on your chimney photo and texted you here so you have a direct line. Good news: your surrounding shingles look solid—the leak is coming from a ~3.5" separated step-flashing joint along the brickwork.',
+        kbCitations: [
+          {
+            id: 'kb-territory-zips',
+            category: 'Service Territory',
+            title: 'Verified Coverage Area & ZIP Codes (03104)',
+          },
+        ],
       },
       {
         id: 'm-3',
@@ -188,6 +196,18 @@ export const INITIAL_THREADS = [
         channel: 'SMS',
         timestamp: '10:15 AM',
         text: 'For a chimney step-flashing re-seal, counter-flashing repair & decking moisture check in Manchester (03104), our transparent ballpark is $450–$950 including a $0 on-site inspection. Would you like our crew lead to stop by today at 2:30 PM or tomorrow at 9:00 AM?',
+        kbCitations: [
+          {
+            id: 'kb-pricing-matrix',
+            category: 'Pricing & Diagnostics',
+            title: 'Roof Leak & Flashing Repair ($450–$950)',
+          },
+          {
+            id: 'kb-calendar-sop',
+            category: 'Cal.com Scheduling',
+            title: 'Cal.com Live Inspection Windows',
+          },
+        ],
       },
       {
         id: 'm-4',
@@ -214,6 +234,7 @@ export const INITIAL_THREADS = [
     channels: ['Missed Call', 'SMS'],
     primaryChannel: 'Missed Call',
     aiStatus: 'needs_human',
+    opportunityStage: 'qualifying',
     aiAutopilot: false,
     handoffMode: 'Human',
     alfredDraft: {

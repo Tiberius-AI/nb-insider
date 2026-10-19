@@ -1,7 +1,7 @@
 # PROJECT BLUEPRINT: Contractor AI Platform & Scrollytelling Engine
 
 ## 1. Core Business & Architecture Goal
-We are building a proprietary, high-converting contractor web + AI lead-gen platform (replacing cookie-cutter GoHighLevel setups) with a **Rent ($297-$397/mo), Rent-to-Own ($497-$597/mo), or Buy Outright ($2,500+)** model.
+We are building a proprietary, high-converting contractor web + AI lead-gen platform (replacing cookie-cutter GoHighLevel setups) with a **Rent ($297-$397/mo), Rent-to-Own ($497-$597/mo), or Buy Outright ($2,500+)** model, distributed and onboarded through **NB Insider**.
 
 ## 2. Pillar 1: The Higgsfield Scroll-Scrubbing Client Website Template
 - **Visual Baseline & Guardrail:** Preserve Codex's original editorial SCG Roofing / Tiberius Smart Sites aesthetic (`reference/codex-original/` at commit `555f369`) as the canonical visual baseline. Do not overwrite its typography, warm light surface palette, or layout hierarchy with unprompted dark-mode HUD restyling.
@@ -12,20 +12,27 @@ We are building a proprietary, high-converting contractor web + AI lead-gen plat
   1. Type a project question, OR
   2. Snap/upload a photo of their damage/project (`📷 Snap / Upload Photo`).
   3. Enter their mobile number to trigger an instant SMS handshake with our AI + Human back-office.
-- **Multi-Tenant Config:** Driven by a single JSON config per contractor (`niche`, `brandColor`, `city`, `companyName`, `pricingRules`).
+- **Multi-Tenant Config:** Driven by a single JSON config per contractor (`niche`, `brandColor`, `city`, `companyName`, `pricingRules`, `knowledgeBase`, `calcomConfig`).
 
-## 3. Pillar 2: The 3-Pane Unified Conversation Room (Back-Office)
-Emulate the battle-tested 3-pane layout of GoHighLevel's Conversations tab, stripped of bloat and upgraded with native AI + Human-in-the-loop controls and aligned with Codex's clean design tokens:
-- **Left Pane (Thread Queue - 25%):** Contact list, search/filters (Unread, AI Active, Needs Human), channel badges (SMS, Webchat, Missed Call), and **AI Status Pills** (`🤖 AI Qualifying`, `🟢 Ready for Quote`, `🚨 Needs Human`).
-- **Center Pane (Unified Timeline - 50%):** Chronological stream blending SMS, Webchat, Missed Call events, customer photos, and audio voicemails.
-  - **CRITICAL FEATURE:** Top header toggle: `[ 🤖 AI Autopilot: ON | ✋ Take Over ]` (plus optional `📝 Alfred Drafts` approval mode). If a human types and sends a message, automatically flip Autopilot to OFF so AI and humans never talk over each other.
-  - **Co-Pilot Whisper:** A "Suggest Reply" button that drafts a response based on contractor rules, plus Voice-Note-to-Polished-SMS for contractors in the field.
-- **Right Pane (Live AI Job Summary Card - 25%):** Contact details + an auto-populated LLM extraction card showing:
-  - Service Needed & Urgency
+## 3. Pillar 2: The GoHighLevel-Style 3-Pane Unified Conversation Room (Back-Office)
+Emulate and upgrade the battle-tested 3-pane layout of GoHighLevel's Conversations tab, stripped of bloat, aligned with Codex's clean daylight design tokens, and powered by a **Grounded Knowledge Base** + **Dual-Mode Cal.com Calendar Engine**:
+- **Left Pane (Thread Queue - 25%):** Contact list, search/filters (`All`, `Unread`, `AI Active`, `Booked`, `Needs Human`), channel badges (`SMS`, `Webchat`, `Missed Call`), Opportunity Pipeline Stage badge, and **AI Status Pills** (`🤖 AI Qualifying`, `🟢 Ready for Quote`, `📅 Cal.com Booked`, `🚨 Needs Human`).
+- **Center Pane (Unified Timeline - 50%):** Chronological stream blending SMS, Webchat, Missed Call events, customer photos, audio voicemails, and **Knowledge Base Citations (`📚 KB Cited`)**.
+  - **CRITICAL FEATURE:** Top header toggle: `[ 🤖 AI Autopilot: ON | 📝 Alfred Drafts | ✋ Take Over ]`. If a human types and sends a message, automatically flip Autopilot to OFF so AI and humans never talk over each other.
+  - **Live Inbound Homeowner Simulator:** Test bar allowing the operator to send simulated homeowner SMS messages (pricing questions, warranty/ZIP checks, or *"Book me tomorrow at 9am"*) and watch Alfred query the Knowledge Base and book appointments on Cal.com in real time.
+  - **Co-Pilot Whisper:** A "Suggest Reply" button that drafts a response grounded in the Knowledge Base & live Cal.com slots, plus Voice-Note-to-Polished-SMS for contractors in the field.
+- **Right Pane (GHL Contact, Opportunity Pipeline, Cal.com Booking & Knowledge Base Card - 25%):**
+  - Contact & Territory Verification + **GHL Opportunity Pipeline Stage** (`New Lead`, `AI Qualifying`, `Quote Sent`, `Appointment Booked`, `Job Won`)
+  - Service Needed, Urgency & Estimated Job Value
   - Uploaded Customer Photos (with Vision AI pre-analysis summary & click-to-enlarge inspection lightbox)
-  - Verified Zip/Address
-  - Estimated Job Value & One-Click Calendar Booking
+  - **Dual-Mode Cal.com Calendar Engine:** Live slot picker, one-click or AI-autonomous booking (via Cal.com REST API + instant public handle/embed fallback), booking confirmation ID, reschedule/cancel actions, and live Cal.com embed modal.
+  - **Tenant Knowledge Base Inspector:** View, search, and add live Knowledge Base articles/rules (`Service Territory`, `Pricing & Diagnostics`, `Warranty & Credentials`, `Emergency SOPs`) that immediately ground Alfred's responses.
 
 ## 4. Pillar 3: Automated SMS & Reputation Workflows
 - **Missed-Call Rescue:** Instant conversational SMS trigger when a call is missed.
-- **TOS-Safe Conversational Review Engine (No illegal star-gating):** A "Job Completed" trigger that texts the customer a natural check-in ("How did everything go today?"). AI sentiment analysis routes positive replies to a direct Google Review link, and negative replies to `🚨 Needs Human` private escalation.
+- **TOS-Safe Conversational Review Engine (No illegal star-gating):** A "Job Completed" trigger that texts the customer a natural check-in with the direct Google Review link included unconditionally, while AI sentiment analysis automatically escalates any issue reply to `🚨 Needs Human` and pauses AI Autopilot.
+
+## 5. Multi-Trade Cloner & NB Insider Distribution Roadmap
+- **Phase 1 (Milestone 5):** GoHighLevel-Style Conversation Room + Dual-Mode Cal.com Calendar Booking + Grounded Knowledge Base Engine.
+- **Phase 2 (Milestone 6):** Rapid Multi-Trade Site Cloner — Master Electrician Template (Panel Upgrades, EV Chargers, Whole-Home Generators, 24/7 Emergency Dispatch) using the exact Codex site structure + custom scroll-scrubbing hero visual.
+- **Phase 3 (Milestone 7):** NB Insider Flagship Website & Local Business Onboarding Portal to distribute the app and onboard local businesses.

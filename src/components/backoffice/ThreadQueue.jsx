@@ -5,6 +5,7 @@ import {
   MessageSquare,
   Globe,
   PhoneIncoming,
+  CalendarCheck,
 } from 'lucide-react'
 import { usePlatform } from '../../context/usePlatform'
 
@@ -23,6 +24,14 @@ const AI_STATUS_META = {
   },
 }
 
+const STAGE_LABELS = {
+  new_lead: 'New Lead',
+  qualifying: 'Qualifying',
+  quote_sent: 'Quote Sent',
+  appointment_booked: '📅 Cal.com Booked',
+  job_won: '🏆 Job Won',
+}
+
 export default function ThreadQueue() {
   const {
     threads,
@@ -33,7 +42,7 @@ export default function ThreadQueue() {
   } = usePlatform()
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeFilter, setActiveFilter] = useState('all') // 'all' | 'unread' | 'ai_active' | 'needs_human'
+  const [activeFilter, setActiveFilter] = useState('all') // 'all' | 'unread' | 'ai_active' | 'booked' | 'needs_human'
 
   const filteredThreads = threads.filter((thread) => {
     const matchesSearch =
@@ -47,6 +56,7 @@ export default function ThreadQueue() {
 
     if (activeFilter === 'unread') return thread.unread
     if (activeFilter === 'ai_active') return thread.aiAutopilot
+    if (activeFilter === 'booked') return Boolean(thread.jobSummary.bookedSlot)
     if (activeFilter === 'needs_human') return thread.aiStatus === 'needs_human'
     return true
   })
@@ -72,6 +82,8 @@ export default function ThreadQueue() {
       </span>
     )
   }
+
+  const bookedCount = threads.filter((t) => Boolean(t.jobSummary.bookedSlot)).length
 
   return (
     <aside className="pane-left-queue">
@@ -100,7 +112,7 @@ export default function ThreadQueue() {
           />
         </div>
 
-        {/* Filter Pills (All, Unread, AI Active, Needs Human) */}
+        {/* Filter Pills (All, Unread, AI Active, Booked, Needs Human) */}
         <div className="queue-filter-tabs">
           <button
             type="button"
@@ -125,6 +137,13 @@ export default function ThreadQueue() {
           </button>
           <button
             type="button"
+            className={`filter-pill ${activeFilter === 'booked' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('booked')}
+          >
+            Booked ({bookedCount})
+          </button>
+          <button
+            type="button"
             className={`filter-pill human-filter ${
               activeFilter === 'needs_human' ? 'active' : ''
             }`}
@@ -142,6 +161,9 @@ export default function ThreadQueue() {
           const statusMeta =
             AI_STATUS_META[thread.aiStatus] || AI_STATUS_META.qualifying
           const lastMsg = thread.messages[thread.messages.length - 1]
+          const stageKey =
+            thread.opportunityStage ||
+            (thread.jobSummary.bookedSlot ? 'appointment_booked' : 'quote_sent')
 
           return (
             <div
@@ -181,7 +203,7 @@ export default function ThreadQueue() {
                 <span className="thread-time">{thread.lastActivity}</span>
               </div>
 
-              {/* AI Status Pill + Autopilot Indicator */}
+              {/* AI Status Pill + Autopilot Indicator + GHL Opportunity Stage */}
               <div className="thread-pills-row">
                 <span className={`ai-status-pill ${statusMeta.className}`}>
                   {statusMeta.pillText}
@@ -193,6 +215,11 @@ export default function ThreadQueue() {
                 >
                   {thread.aiAutopilot ? '🤖 Auto: ON' : '✋ Human Mode'}
                 </span>
+                {thread.jobSummary.bookedSlot && (
+                  <span className="cal-booked-mini-pill">
+                    <CalendarCheck size={10} /> Cal.com
+                  </span>
+                )}
               </div>
 
               {/* Snippet */}
@@ -200,16 +227,19 @@ export default function ThreadQueue() {
                 {lastMsg?.text || 'New conversation thread'}
               </p>
 
-              {/* Channel Badges + Estimated Value */}
+              {/* Channel Badges + Opportunity Stage & Est Value */}
               <div className="thread-card-footer">
                 <div className="channel-badges-group">
                   {thread.channels.map((ch) => renderChannelBadge(ch))}
+                  <span className="ghl-stage-mini-tag">
+                    {STAGE_LABELS[stageKey] || 'Open'}
+                  </span>
                 </div>
                 <span
-                  className="est-value-tag"
+                  className="thread-est-val"
                   style={{ color: activeTenant.brandColor }}
                 >
-                  ~${thread.jobSummary.estimatedValue.toLocaleString()}
+                  ${thread.jobSummary.estimatedValue.toLocaleString()}
                 </span>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { usePlatform } from '../../context/usePlatform'
 import { optimizeUploadedPhotos } from '../../utils/photoOptimizer'
+import { queryKnowledgeBase } from '../../utils/knowledgeBaseEngine'
 
 const DEFAULT_CHIPS = [
   'My roof is leaking',
@@ -16,6 +17,10 @@ export default function TiberiusHelperModal() {
     closeHelperModal,
     openHelperModal,
     submitHeroLead,
+    bookInspectionSlot,
+    availableSlots,
+    customKbEntries,
+    calcomConfig,
     setActiveView,
   } = usePlatform()
 
@@ -87,7 +92,6 @@ export default function TiberiusHelperModal() {
     }
     if (reviewState === 'saved') {
       setReviewState('form')
-      setStep(0)
     }
   }
 
@@ -166,39 +170,39 @@ export default function TiberiusHelperModal() {
       status: 'Just now · Delivered',
     }
 
+    const kbResult = queryKnowledgeBase({
+      query: text || service,
+      tenant: activeTenant,
+      thread: {
+        contactName: name || 'there',
+        address: address || activeTenant.city,
+        jobSummary: { serviceNeeded: service },
+      },
+      availableSlots,
+      customEntries: customKbEntries,
+    })
+
     const primarySvcName =
       tenantServices[0]?.name || 'Roof Leak & Flashing Repair'
-    const replacementSvcName =
-      tenantServices[1]?.name || primarySvcName
-
-    let matchedSvc = service || primarySvcName
-    let aiReplyText = `Thanks for sharing those details. For ${activeTenant.companyName} in ${activeTenant.city}, we start by reviewing what you’ve noticed and confirming your location before scheduling an inspection.`
-    if (/leak|water|drip|stain|repair/i.test(text)) {
-      aiReplyText =
-        'If water is coming in around flashing, a vent pipe, or a valley, tell us where you see the stain and when it started. You can also add up to 3 photos or start a repair request.'
-      matchedSvc = primarySvcName
-      setService(primarySvcName)
+    const matchedSvc = kbResult.matchedService?.name || service || primarySvcName
+    setService(matchedSvc)
+    if (/leak|water|drip|stain|urgent/i.test(text)) {
       setUrgency('Urgent')
       if (!description) setDescription(text)
-    } else if (/shingle|3-tab|architectural|replace|install/i.test(text)) {
-      aiReplyText =
-        'Architectural shingles offer stronger wind resistance and dimensional depth compared to traditional 3-tab shingles, and we also inspect the underlayment, flashing, and attic ventilation underneath.'
-      matchedSvc = replacementSvcName
-      setService(replacementSvcName)
-    } else if (/area|serve|where|hooksett|nh/i.test(text)) {
-      aiReplyText = `${activeTenant.companyName} is based in ${activeTenant.city}. Share your 5-digit ZIP code in the request form to confirm coverage.`
     }
+
+    const aiReplyText = kbResult.replyText.replace(/\*\*/g, '')
 
     const aiMsg = {
       id: `ai-${seq}`,
       sender: 'AI',
       author: 'Alfred · AI',
       content: aiReplyText,
-      status: 'Just now · Saved for owner review',
+      status: `Just now · Grounded in ${kbResult.citations.length} Knowledge Base rule(s)`,
     }
 
     setChatLog((prev) => [...prev, visitorMsg, aiMsg])
-    submitHeroLead({
+    const createdThreadId = submitHeroLead({
       question: text || `Uploaded ${chatPhotos.length} project photo(s)`,
       phone:
         contactMethod === 'phone' && contactValue
@@ -217,6 +221,22 @@ export default function TiberiusHelperModal() {
       preferredWindow: contactWindow,
       sourceLabel: 'Alfred Roof Assistant Chat',
     })
+
+    if (kbResult.bookingIntent.wantsToBook && kbResult.bookingIntent.matchedSlot) {
+      bookInspectionSlot(createdThreadId, kbResult.bookingIntent.matchedSlot, {
+        name: name || 'Website Homeowner',
+        email:
+          contactMethod === 'email' && contactValue
+            ? contactValue
+            : 'homeowner@example.com',
+        phone:
+          contactMethod === 'phone' && contactValue
+            ? contactValue
+            : activeTenant.phoneDisplay || '(603) 555-0194',
+        address: address || activeTenant.city,
+        serviceNeeded: matchedSvc,
+      })
+    }
 
     setChatInput('')
     setChatPhotos([])
@@ -969,7 +989,7 @@ export default function TiberiusHelperModal() {
               </button>
               <a
                 className="helper-plain"
-                href={activeTenant.bookingUrl || 'https://cal.com/tiberius/contractor'}
+                href={`https://cal.com/${(calcomConfig?.handle || 'tiberius').replace(/^@/, '')}/${(calcomConfig?.eventSlug || 'contractor').replace(/^\//, '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -979,8 +999,8 @@ export default function TiberiusHelperModal() {
             {calVisible && (
               <div id="cal-embed" className="cal-embed">
                 <iframe
-                  title="Tiberius Demo Calendar"
-                  src="https://cal.com/tiberius/contractor?embed=true&theme=light"
+                  title="Cal.com Live Calendar"
+                  src={`https://cal.com/${(calcomConfig?.handle || 'tiberius').replace(/^@/, '')}/${(calcomConfig?.eventSlug || 'contractor').replace(/^\//, '')}?embed=true&theme=light`}
                   loading="lazy"
                 />
               </div>

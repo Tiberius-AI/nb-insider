@@ -1,10 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import contractorsData from '../config/contractors.json'
 import {
   INITIAL_THREADS,
   SAMPLE_DAMAGE_PHOTOS,
   createDamagePhotoSvg,
 } from '../data/initialConversations'
+import {
+  getSavedCalcomConfig,
+  saveCalcomConfig,
+  buildDefaultCalendarSlots,
+  fetchCalcomAvailableSlots,
+  createCalcomBooking,
+  cancelCalcomBooking,
+} from '../utils/calcomService'
+import {
+  buildTenantKnowledgeBase,
+  queryKnowledgeBase,
+} from '../utils/knowledgeBaseEngine'
 import { PlatformContext } from './usePlatform'
 
 function formatNowTime() {
@@ -49,8 +61,51 @@ export function PlatformProvider({ children }) {
   const [activePlanId, setActivePlanId] = useState('rent-to-own')
   const [activeView, setActiveView] = useState('client') // 'client' | 'backoffice' | 'workflows'
   const [threads, setThreads] = useState(INITIAL_THREADS)
+  const threadsRef = useRef(INITIAL_THREADS)
   const [selectedThreadId, setSelectedThreadId] = useState(INITIAL_THREADS[0].id)
   const [toastNotification, setToastNotification] = useState(null)
+
+  useEffect(() => {
+    threadsRef.current = threads
+  }, [threads])
+
+  const activeTenant = tenants.find((t) => t.id === activeTenantId) || tenants[0]
+
+  // Dual-Mode Cal.com v2 Calendar State (Tenant-Scoped)
+  const [calcomConfigByTenant, setCalcomConfigByTenant] = useState(() => {
+    const map = {}
+    contractorsData.tenants.forEach((t) => {
+      map[t.id] = getSavedCalcomConfig(t)
+    })
+    return map
+  })
+
+  const calcomConfig =
+    calcomConfigByTenant[activeTenant.id] || getSavedCalcomConfig(activeTenant)
+
+  const [availableSlots, setAvailableSlots] = useState(() =>
+    buildDefaultCalendarSlots()
+  )
+  const [calcomStatus, setCalcomStatus] = useState({
+    liveApiActive: false,
+    emptyLiveAvailability: false,
+    sourceLabel: 'Cal.com Schedule Ready',
+    loading: false,
+  })
+  const [calcomEmbedOpen, setCalcomEmbedOpen] = useState(false)
+
+  // Tenant Knowledge Base Custom Entries (Owner-editable per tenant)
+  const [customKbByTenant, setCustomKbByTenant] = useState({
+    'scg-roofing': [
+      {
+        id: 'kb-custom-nh-ice',
+        category: 'Owner Rule',
+        title: 'Southern NH Ice Dam & Emergency Tarping Policy',
+        content:
+          'For active interior ceiling drips in Hooksett, Manchester, or Dover, SCG Roofing offers same-day emergency tarping ($350 credited toward your permanent flashing or roof repair).',
+      },
+    ],
+  })
 
   // Tiberius "Make Alfred Your Own" Setup & AI Budget Telemetry (from owner-setup.mjs & owner.mjs)
   const [alfredSetup, setAlfredSetup] = useState({
@@ -70,7 +125,6 @@ export function PlatformProvider({ children }) {
   // Tiberius Conversation Photo Lightbox State (from conversation-photos.mjs)
   const [lightboxPhoto, setLightboxPhoto] = useState(null)
 
-  const activeTenant = tenants.find((t) => t.id === activeTenantId) || tenants[0]
   const activePlan =
     contractorsData.platformPlans.find((p) => p.id === activePlanId) ||
     contractorsData.platformPlans[1]
@@ -78,8 +132,98 @@ export function PlatformProvider({ children }) {
   const selectedThread =
     threads.find((t) => t.id === selectedThreadId) || threads[0]
 
+  const customKbEntries = customKbByTenant[activeTenant.id] || []
+  const knowledgeBaseArticles = buildTenantKnowledgeBase(
+    activeTenant,
+    customKbEntries
+  )
+
   const showToast = (toast) => {
     setToastNotification({ id: Date.now(), ...toast })
+  }
+
+  const refreshCalcomSlots = async (overrideConfig = calcomConfig) => {
+    setCalcomStatus((prev) => ({ ...prev, loading: true }))
+    const res = await fetchCalcomAvailableSlots(overrideConfig)
+    setAvailableSlots(res.slots)
+    setCalcomStatus({
+      liveApiActive: res.liveApiActive,
+      emptyLiveAvailability: Boolean(res.emptyLiveAvailability),
+      sourceLabel: res.sourceLabel,
+      apiError: res.apiError || null,
+      loading: false,
+    })
+    return res
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    const tenantConfig =
+      calcomConfigByTenant[activeTenant.id] || getSavedCalcomConfig(activeTenant)
+    fetchCalcomAvailableSlots(tenantConfig).then((res) => {
+      if (cancelled) return
+      setAvailableSlots(res.slots)
+      setCalcomStatus({
+        liveApiActive: res.liveApiActive,
+        emptyLiveAvailability: Boolean(res.emptyLiveAvailability),
+        sourceLabel: res.sourceLabel,
+        apiError: res.apiError || null,
+        loading: false,
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTenant, activeTenantId, calcomConfigByTenant])
+
+  const updateCalcomConfig = async (nextPartial) => {
+    const currentTenantConfig =
+      calcomConfigByTenant[activeTenant.id] || getSavedCalcomConfig(activeTenant)
+    const merged = saveCalcomConfig(
+      { ...currentTenantConfig, ...nextPartial, tenantId: activeTenant.id },
+      activeTenant.id
+    )
+    setCalcomConfigByTenant((prev) => ({
+      ...prev,
+      [activeTenant.id]: merged,
+    }))
+    const res = await refreshCalcomSlots(merged)
+    showToast({
+      title: res.liveApiActive
+        ? 'Cal.com API v2 Connected!'
+        : 'Cal.com Calendar Updated',
+      message: res.sourceLabel,
+      type: res.apiError ? 'warning' : 'success',
+    })
+  }
+
+  const addCustomKnowledgeArticle = ({ category = 'Owner Rule', title, content }) => {
+    if (!title?.trim() || !content?.trim()) return
+    const newArt = {
+      id: `kb-custom-${Date.now()}`,
+      category,
+      title: title.trim(),
+      content: content.trim(),
+      isCustom: true,
+    }
+    setCustomKbByTenant((prev) => ({
+      ...prev,
+      [activeTenant.id]: [newArt, ...(prev[activeTenant.id] || [])],
+    }))
+    showToast({
+      title: 'Knowledge Base Rule Added',
+      message: `Alfred now grounds replies using "${newArt.title}".`,
+      type: 'success',
+    })
+  }
+
+  const deleteCustomKnowledgeArticle = (articleId) => {
+    setCustomKbByTenant((prev) => ({
+      ...prev,
+      [activeTenant.id]: (prev[activeTenant.id] || []).filter(
+        (a) => a.id !== articleId
+      ),
+    }))
   }
 
   const openHelperModal = (mode = 'chat', preselectedService = '') => {
@@ -252,6 +396,19 @@ export function PlatformProvider({ children }) {
       },
     ]
 
+    const leadCitations = [
+      {
+        id: 'kb-pricing-matrix',
+        category: 'Pricing & Diagnostics',
+        title: `${matchedService.name} (${matchedService.range})`,
+      },
+      {
+        id: 'kb-territory-zips',
+        category: 'Service Territory',
+        title: `Verified Territory (${zip})`,
+      },
+    ]
+
     if (initialHandoff === 'AI') {
       initialMessages.push({
         id: `msg-${Date.now()}-3`,
@@ -259,6 +416,7 @@ export function PlatformProvider({ children }) {
         channel: 'SMS',
         timestamp,
         text: aiReplyText,
+        kbCitations: leadCitations,
       })
     }
 
@@ -282,6 +440,7 @@ export function PlatformProvider({ children }) {
       channels: ['Webchat', 'SMS'],
       primaryChannel: 'SMS',
       aiStatus: 'ready_for_quote',
+      opportunityStage: 'quote_sent',
       aiAutopilot: isAutopilot,
       handoffMode: initialHandoff,
       alfredDraft:
@@ -291,6 +450,7 @@ export function PlatformProvider({ children }) {
               createdAt: timestamp,
               reason: `Alfred prepared a reply for ${name}'s ${matchedService.name} inquiry.`,
               text: aiReplyText,
+              citations: leadCitations,
             }
           : null,
       jobSummary: {
@@ -300,13 +460,18 @@ export function PlatformProvider({ children }) {
         estimatedRange: matchedService.range,
         visionSummary: visionAnalysis,
         bookedSlot: null,
+        lastKbCitations: leadCitations,
         reviewStage: 'none',
         photos: builtPhotos,
       },
       messages: initialMessages,
     }
 
-    setThreads((prev) => [newThread, ...prev])
+    setThreads((prev) => {
+      const next = [newThread, ...prev]
+      threadsRef.current = next
+      return next
+    })
     setSelectedThreadId(newThreadId)
     setAlfredSetup((prev) => ({
       ...prev,
@@ -327,8 +492,8 @@ export function PlatformProvider({ children }) {
   // Toggle AI Autopilot explicitly (supports boolean or 3-mode Tiberius handoff)
   const toggleAutopilot = (threadId, nextState) => {
     const timestamp = formatNowTime()
-    setThreads((prev) =>
-      prev.map((thread) => {
+    setThreads((prev) => {
+      const next = prev.map((thread) => {
         if (thread.id !== threadId) return thread
         const resolved =
           typeof nextState === 'boolean' ? nextState : !thread.aiAutopilot
@@ -350,14 +515,16 @@ export function PlatformProvider({ children }) {
           messages: [...thread.messages, sysMsg],
         }
       })
-    )
+      threadsRef.current = next
+      return next
+    })
   }
 
   // Set explicit Tiberius 3-Mode Handoff ('AI' | 'Draft' | 'Human')
   const setThreadHandoffMode = (threadId, mode) => {
     const timestamp = formatNowTime()
-    setThreads((prev) =>
-      prev.map((thread) => {
+    setThreads((prev) => {
+      const next = prev.map((thread) => {
         if (thread.id !== threadId) return thread
         const isAutopilot = mode !== 'Human'
         const modeLabels = {
@@ -400,26 +567,75 @@ export function PlatformProvider({ children }) {
           ],
         }
       })
-    )
+      threadsRef.current = next
+      return next
+    })
   }
 
   // Approve & Send or Dismiss Alfred Private Draft (from Tiberius owner.mjs)
-  const approveAlfredDraft = (threadId, customText) => {
-    const targetThread = threads.find((t) => t.id === threadId)
+  const approveAlfredDraft = async (threadId, customText) => {
+    const targetThread = threadsRef.current.find((t) => t.id === threadId)
     if (!targetThread || !targetThread.alfredDraft) return
     const rawText =
       customText !== undefined ? customText : targetThread.alfredDraft.text
     const finalMsg = String(rawText ?? '').trim()
     if (!finalMsg) return
 
+    const draftObj = targetThread.alfredDraft
+    let calBooking = null
+    if (draftObj.pendingSlot) {
+      calBooking = await createCalcomBooking({
+        calConfig: calcomConfig,
+        slot: draftObj.pendingSlot,
+        attendee: {
+          name: targetThread.contactName,
+          email: targetThread.email,
+          phone: targetThread.phone,
+          address: targetThread.address,
+        },
+        serviceName: targetThread.jobSummary.serviceNeeded,
+        companyName: activeTenant.companyName,
+      })
+    }
+
+    const bookingSucceeded = Boolean(calBooking && calBooking.ok)
+    const bookingRef =
+      calBooking?.bookingUid || calBooking?.holdReference || 'PENDING'
     const timestamp = formatNowTime()
-    setThreads((prev) =>
-      prev.map((thread) => {
+
+    setThreads((prev) => {
+      const next = prev.map((thread) => {
         if (thread.id !== threadId || !thread.alfredDraft) return thread
+        const extraEvents = calBooking
+          ? [
+              {
+                id: `sys-cal-draft-${Date.now() + 2}`,
+                sender: 'system',
+                channel: thread.primaryChannel || 'SMS',
+                timestamp,
+                eventType: bookingSucceeded ? 'booking' : 'escalation',
+                text: bookingSucceeded
+                  ? `📅 ${calBooking.mode} (${
+                      calBooking.apiVerified ? `UID: ${bookingRef}` : `Hold: ${bookingRef}`
+                    }): ${calBooking.slotLabel}`
+                  : `⚠️ Calendar booking failed (${calBooking.error}). Sent reply without confirming calendar slot.`,
+              },
+            ]
+          : []
         return {
           ...thread,
           alfredDraft: null,
+          opportunityStage: bookingSucceeded
+            ? 'appointment_booked'
+            : thread.opportunityStage || 'quote_sent',
           lastActivity: 'Just now',
+          jobSummary: bookingSucceeded
+            ? {
+                ...thread.jobSummary,
+                bookedSlot: calBooking.slotLabel,
+                calcomBooking: calBooking,
+              }
+            : thread.jobSummary,
           messages: [
             ...thread.messages,
             {
@@ -430,30 +646,42 @@ export function PlatformProvider({ children }) {
               eventType: 'autopilot_on',
               text: '✅ Owner approved & dispatched Alfred’s private draft',
             },
+            ...extraEvents,
             {
               id: `ai-approved-${Date.now() + 1}`,
               sender: 'ai',
               channel: thread.primaryChannel || 'SMS',
               timestamp,
               text: finalMsg,
+              kbCitations: draftObj.citations || [],
             },
           ],
         }
       })
-    )
+      threadsRef.current = next
+      return next
+    })
     showToast({
-      title: 'Alfred Draft Approved & Sent',
-      message: 'Dispatched approved reply to homeowner timeline.',
-      type: 'success',
+      title: bookingSucceeded
+        ? `Draft Sent & ${calBooking.mode}`
+        : calBooking && !calBooking.ok
+          ? 'Draft Sent (Calendar Booking Failed)'
+          : 'Alfred Draft Approved & Sent',
+      message: bookingSucceeded
+        ? `${calBooking.slotLabel} (${bookingRef}).`
+        : calBooking?.error || 'Dispatched approved reply to homeowner timeline.',
+      type: calBooking && !calBooking.ok ? 'warning' : 'success',
     })
   }
 
   const dismissAlfredDraft = (threadId) => {
-    setThreads((prev) =>
-      prev.map((thread) =>
+    setThreads((prev) => {
+      const next = prev.map((thread) =>
         thread.id === threadId ? { ...thread, alfredDraft: null } : thread
       )
-    )
+      threadsRef.current = next
+      return next
+    })
   }
 
   // CRITICAL FEATURE (Blueprint + Tiberius owner.mjs):
@@ -462,10 +690,11 @@ export function PlatformProvider({ children }) {
     if (!text?.trim()) return
     const timestamp = formatNowTime()
 
-    setThreads((prev) =>
-      prev.map((thread) => {
+    setThreads((prev) => {
+      const next = prev.map((thread) => {
         if (thread.id !== threadId) return thread
-        const wasAutopilotOn = thread.aiAutopilot || thread.handoffMode !== 'Human'
+        const wasAutopilotOn =
+          thread.aiAutopilot || thread.handoffMode !== 'Human'
         const newMessages = [...thread.messages]
 
         if (wasAutopilotOn) {
@@ -497,59 +726,178 @@ export function PlatformProvider({ children }) {
           messages: newMessages,
         }
       })
-    )
+      threadsRef.current = next
+      return next
+    })
   }
 
   // Update AI Status Pill ('qualifying' | 'ready_for_quote' | 'needs_human')
   const updateThreadStatus = (threadId, newStatus) => {
-    setThreads((prev) =>
-      prev.map((thread) =>
+    setThreads((prev) => {
+      const next = prev.map((thread) =>
         thread.id === threadId ? { ...thread, aiStatus: newStatus } : thread
       )
-    )
+      threadsRef.current = next
+      return next
+    })
   }
 
-  // Co-Pilot Whisper: Drafts a context-aware reply based on contractor rules
+  // Update GHL Opportunity Pipeline Stage ('new_lead' | 'qualifying' | 'quote_sent' | 'appointment_booked' | 'job_won')
+  const updateOpportunityStage = (threadId, nextStage) => {
+    setThreads((prev) => {
+      const next = prev.map((thread) =>
+        thread.id === threadId
+          ? { ...thread, opportunityStage: nextStage }
+          : thread
+      )
+      threadsRef.current = next
+      return next
+    })
+  }
+
+  // Co-Pilot Whisper: Drafts a context-aware reply grounded in Knowledge Base & live Cal.com slots
   const generateCoPilotSuggestion = (threadId) => {
-    const thread = threads.find((t) => t.id === threadId) || selectedThread
+    const thread =
+      threadsRef.current.find((t) => t.id === threadId) || selectedThread
+    const lastCustomerMsg = [...(thread?.messages || [])]
+      .reverse()
+      .find((m) => m.sender === 'customer')
+
+    if (lastCustomerMsg?.text) {
+      const kbResult = queryKnowledgeBase({
+        query: lastCustomerMsg.text,
+        tenant: activeTenant,
+        thread,
+        availableSlots,
+        customEntries: customKbEntries,
+      })
+      return kbResult.replyText.replace(/\*\*/g, '')
+    }
+
     const firstName = thread.contactName.split(' ')[0]
     const service = thread.jobSummary.serviceNeeded
     const range = thread.jobSummary.estimatedRange
+    const slot1 = availableSlots[0]?.shortLabel || 'Today at 2:30 PM'
+    const slot2 = availableSlots[1]?.shortLabel || 'Tomorrow at 9:00 AM'
 
     if (thread.aiStatus === 'needs_human') {
-      return `Hi ${firstName}, this is the Senior Project Estimator at ${activeTenant.companyName}. I reviewed your photo and notes for ${service}. I can personally meet on-site tomorrow at 10:00 AM to inspect the decking and flashing—shall I lock you onto my calendar?`
+      return `Hi ${firstName}, this is the Senior Project Estimator at ${activeTenant.companyName}. I reviewed your photo and notes for ${service}. I can personally meet on-site ${slot2} to inspect the structure—shall I lock you onto our Cal.com calendar?`
     }
-    if (thread.aiStatus === 'ready_for_quote') {
-      return `Hi ${firstName}! Locking in your ${range} estimate range for ${service} here in ${activeTenant.city}. I have our lead estimator available today at 2:30 PM or tomorrow at 9:00 AM—reply 1 for today or 2 for tomorrow and you're all set!`
-    }
-    return `Hi ${firstName}, thanks for reaching out to ${activeTenant.companyName}! Based on our ${activeTenant.city} pricing for ${service} (${range}), we can get a licensed specialist out to ${thread.address} today. If you can snap one quick photo from the driveway, I'll pre-load the exact materials on the truck!`
+    return `Hi ${firstName}! Locking in your ${range} estimate range for ${service} here in ${activeTenant.city}. Our Cal.com calendar has ${slot1} (Reply 1) or ${slot2} (Reply 2) open—which works best for you?`
   }
 
   // Field Voice-Note-to-Polished-SMS converter
   const polishFieldVoiceNote = (rawVoiceTranscript, threadId) => {
-    const thread = threads.find((t) => t.id === threadId) || selectedThread
+    const thread =
+      threadsRef.current.find((t) => t.id === threadId) || selectedThread
     const firstName = thread.contactName.split(' ')[0]
     const cleanRaw =
       rawVoiceTranscript?.trim() ||
       'tell him we looked at the flashing gap by the brick, we can seal and re-lead it tomorrow at 2pm for 580 bucks'
 
-    return `Hi ${firstName}, our lead technician just reviewed your ${thread.jobSummary.serviceNeeded.toLowerCase()} details ("${cleanRaw}"). We can complete the full repair and waterproof seal tomorrow at 2:00 PM for $580 flat, backed by our ${activeTenant.companyName} workmanship warranty. Would you like me to lock in that 2:00 PM arrival window?`
+    return `Hi ${firstName}, our lead technician just reviewed your ${thread.jobSummary.serviceNeeded.toLowerCase()} details ("${cleanRaw}"). We can complete the full repair and waterproof seal tomorrow at 2:00 PM for $580 flat, backed by our ${activeTenant.companyName} workmanship warranty. Would you like me to lock in that 2:00 PM arrival window on our Cal.com calendar?`
   }
 
-  // One-Click Calendar Booking in Right Pane
-  const bookInspectionSlot = (threadId, slotLabel = 'Today, 2:30 PM – 4:00 PM') => {
+  // Dual-Mode Cal.com v2 Calendar Booking in Right Pane (or Public Modal / AI Autonomous Booking)
+  const bookInspectionSlot = async (
+    threadId,
+    slotOrLabel = availableSlots[0] || 'Today, 2:30 PM – 4:00 PM',
+    attendeeOverride = null
+  ) => {
+    const resolvedThreadId = threadId || selectedThreadId
+    // Never fall back to selectedThread if an explicit threadId was passed
+    const targetThread = threadId
+      ? threadsRef.current.find((t) => t.id === threadId)
+      : selectedThread
+
+    if (!targetThread && !attendeeOverride) return null
+
+    const resolvedSlotObj =
+      typeof slotOrLabel === 'string'
+        ? availableSlots.find((s) => s.label === slotOrLabel) || {
+            label: slotOrLabel,
+            shortLabel: slotOrLabel,
+            startIso: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            endIso: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+          }
+        : slotOrLabel
+
+    const attendee = {
+      name:
+        attendeeOverride?.name || targetThread?.contactName || 'Homeowner',
+      email:
+        attendeeOverride?.email ||
+        targetThread?.email ||
+        'homeowner@example.com',
+      phone: attendeeOverride?.phone || targetThread?.phone || '',
+      address:
+        attendeeOverride?.address ||
+        targetThread?.address ||
+        activeTenant.city,
+    }
+    const serviceName =
+      attendeeOverride?.serviceNeeded ||
+      targetThread?.jobSummary?.serviceNeeded ||
+      activeTenant.pricingRules.services[0]?.name ||
+      'Inspection'
+
+    const calBooking = await createCalcomBooking({
+      calConfig: calcomConfig,
+      slot: resolvedSlotObj,
+      attendee,
+      serviceName,
+      companyName: activeTenant.companyName,
+    })
+
     const timestamp = formatNowTime()
-    setThreads((prev) =>
-      prev.map((thread) => {
-        if (thread.id !== threadId) return thread
-        const firstName = thread.contactName.split(' ')[0]
+
+    if (!calBooking.ok) {
+      setThreads((prev) => {
+        const next = prev.map((thread) => {
+          if (thread.id !== resolvedThreadId) return thread
+          return {
+            ...thread,
+            lastActivity: 'Just now',
+            messages: [
+              ...thread.messages,
+              {
+                id: `book-err-${Date.now()}`,
+                sender: 'system',
+                channel: 'SMS',
+                timestamp,
+                eventType: 'escalation',
+                text: `⚠️ Cal.com v2 Booking Error: ${calBooking.error} — Slot was NOT confirmed. Direct booking link: ${calBooking.calUrl}`,
+              },
+            ],
+          }
+        })
+        threadsRef.current = next
+        return next
+      })
+      showToast({
+        title: '⚠️ Cal.com Booking Failed',
+        message: calBooking.error || 'Could not verify booking with Cal.com v2.',
+        type: 'warning',
+      })
+      return calBooking
+    }
+
+    const refId =
+      calBooking.bookingUid || calBooking.holdReference || 'SCHEDULED'
+
+    setThreads((prev) => {
+      const next = prev.map((thread) => {
+        if (thread.id !== resolvedThreadId) return thread
+        const firstName = (attendee.name || thread.contactName).split(' ')[0]
         return {
           ...thread,
           aiStatus: 'ready_for_quote',
+          opportunityStage: 'appointment_booked',
           lastActivity: 'Just now',
           jobSummary: {
             ...thread.jobSummary,
-            bookedSlot: slotLabel,
+            bookedSlot: calBooking.slotLabel,
+            calcomBooking: calBooking,
           },
           messages: [
             ...thread.messages,
@@ -559,24 +907,433 @@ export function PlatformProvider({ children }) {
               channel: 'SMS',
               timestamp,
               eventType: 'booking',
-              text: `📅 Calendar Slot Confirmed: ${slotLabel} (${thread.jobSummary.serviceNeeded})`,
+              text: calBooking.apiVerified
+                ? `📅 Cal.com API v2 Verified Booking (UID: ${refId}): ${calBooking.slotLabel}`
+                : `📅 Crew Dispatch Hold Reserved (${calBooking.mode} • Ref: ${refId}): ${calBooking.slotLabel}`,
             },
             {
               id: `book-sms-${Date.now() + 1}`,
               sender: 'ai',
               channel: 'SMS',
               timestamp,
-              text: `Confirmed, ${firstName}! You are booked with ${activeTenant.companyName} for ${slotLabel} at ${thread.address}. You'll receive a live GPS link when our crew rolls out.`,
+              text: calBooking.apiVerified
+                ? `Confirmed on our live Cal.com calendar, ${firstName}! You are booked with ${activeTenant.companyName} for ${calBooking.slotLabel} at ${attendee.address}. Booking UID: ${refId}`
+                : `Reserved on our ${activeTenant.companyName} dispatch schedule for ${calBooking.slotLabel}, ${firstName}! You can also finalize or manage your calendar invite on Cal.com here: ${calBooking.calUrl}`,
+              kbCitations: [
+                {
+                  id: 'kb-calendar-sop',
+                  category: 'Cal.com Scheduling',
+                  title: `${calBooking.apiVerified ? 'Verified UID' : 'Hold Ref'}: ${refId}`,
+                },
+              ],
             },
           ],
         }
       })
-    )
+      threadsRef.current = next
+      return next
+    })
+
     showToast({
-      title: 'Calendar Slot Booked',
-      message: `Dispatched confirmation SMS for ${slotLabel}.`,
+      title: calBooking.apiVerified
+        ? '📅 Cal.com v2 Booking Verified!'
+        : `📅 Reserved on ${calBooking.mode}`,
+      message: `${calBooking.slotLabel} • ${refId}`,
       type: 'success',
     })
+    return calBooking
+  }
+
+  // Sync a booking completed inside the live Cal.com Embed iframe (via postMessage or operator sync)
+  const confirmEmbedBooking = (
+    threadId = selectedThreadId,
+    embedPayload = {}
+  ) => {
+    const timestamp = formatNowTime()
+    const cleanHandle = (calcomConfig?.handle || 'tiberius')
+      .replace(/^@/, '')
+      .trim()
+    const cleanSlug = (calcomConfig?.eventSlug || 'contractor')
+      .replace(/^\//, '')
+      .trim()
+    const slotLabel =
+      embedPayload.slotLabel ||
+      availableSlots[0]?.label ||
+      'Cal.com Embed Appointment'
+    const bookingUid =
+      embedPayload.bookingUid || `cal-embed-${Date.now().toString(36)}`
+    const calBooking = {
+      ok: true,
+      mode: 'Cal.com Live Embed',
+      reservationType: 'calcom_embed',
+      bookingUid,
+      slotLabel,
+      startIso: embedPayload.startIso || new Date().toISOString(),
+      calUrl: `https://cal.com/${cleanHandle}/${cleanSlug}`,
+      apiVerified: Boolean(embedPayload.verifiedEvent),
+    }
+
+    setThreads((prev) => {
+      const next = prev.map((thread) => {
+        if (thread.id !== threadId) return thread
+        return {
+          ...thread,
+          aiStatus: 'ready_for_quote',
+          opportunityStage: 'appointment_booked',
+          lastActivity: 'Just now',
+          jobSummary: {
+            ...thread.jobSummary,
+            bookedSlot: slotLabel,
+            calcomBooking: calBooking,
+          },
+          messages: [
+            ...thread.messages,
+            {
+              id: `embed-book-${Date.now()}`,
+              sender: 'system',
+              channel: 'SMS',
+              timestamp,
+              eventType: 'booking',
+              text: `📅 Cal.com Embed Booking Synced (${slotLabel} • Ref: ${bookingUid})`,
+            },
+          ],
+        }
+      })
+      threadsRef.current = next
+      return next
+    })
+
+    setCalcomEmbedOpen(false)
+    showToast({
+      title: '📅 Cal.com Embed Booking Synced!',
+      message: `${slotLabel} recorded on conversation timeline.`,
+      type: 'success',
+    })
+  }
+
+  const cancelOrRescheduleBooking = async (threadId = selectedThreadId) => {
+    const targetThread = threadsRef.current.find((t) => t.id === threadId)
+    if (!targetThread) return
+
+    const existingBooking = targetThread.jobSummary?.calcomBooking
+    const cancelRes = await cancelCalcomBooking(existingBooking)
+    const timestamp = formatNowTime()
+
+    if (!cancelRes.ok) {
+      setThreads((prev) => {
+        const next = prev.map((thread) => {
+          if (thread.id !== threadId) return thread
+          return {
+            ...thread,
+            messages: [
+              ...thread.messages,
+              {
+                id: `book-cancel-err-${Date.now()}`,
+                sender: 'system',
+                channel: 'SMS',
+                timestamp,
+                eventType: 'escalation',
+                text: `⚠️ Could not cancel live Cal.com booking (${cancelRes.error}). Existing appointment remains active.`,
+              },
+            ],
+          }
+        })
+        threadsRef.current = next
+        return next
+      })
+      showToast({
+        title: '⚠️ Cal.com Cancellation Failed',
+        message: cancelRes.error,
+        type: 'warning',
+      })
+      return
+    }
+
+    setThreads((prev) => {
+      const next = prev.map((thread) => {
+        if (thread.id !== threadId) return thread
+        return {
+          ...thread,
+          opportunityStage: 'quote_sent',
+          lastActivity: 'Just now',
+          jobSummary: {
+            ...thread.jobSummary,
+            bookedSlot: null,
+            calcomBooking: null,
+          },
+          messages: [
+            ...thread.messages,
+            {
+              id: `book-reset-${Date.now()}`,
+              sender: 'system',
+              channel: 'SMS',
+              timestamp,
+              eventType: 'info',
+              text: cancelRes.cancelledRemote
+                ? `🔄 Cancelled live Cal.com v2 booking (${existingBooking?.bookingUid}) and reopened thread for rescheduling.`
+                : '🔄 Released crew dispatch hold and reopened thread for rescheduling.',
+            },
+          ],
+        }
+      })
+      threadsRef.current = next
+      return next
+    })
+    showToast({
+      title: cancelRes.cancelledRemote
+        ? 'Cal.com v2 Booking Cancelled'
+        : 'Calendar Slot Reopened',
+      message: 'Ready to select a new time slot or test AI booking.',
+      type: 'info',
+    })
+  }
+
+  // Live Inbound Homeowner Message Simulator (Tests Knowledge Base RAG + Autonomous Cal.com Booking in GHL Room)
+  const simulateCustomerInboundMessage = async (
+    threadId = selectedThreadId,
+    customerText = '',
+    channel = 'SMS'
+  ) => {
+    const cleanText = customerText?.trim()
+    if (!cleanText) return
+    const targetThread =
+      threadsRef.current.find((t) => t.id === threadId) || selectedThread
+    if (!targetThread) return
+
+    const timestamp = formatNowTime()
+    const kbResult = queryKnowledgeBase({
+      query: cleanText,
+      tenant: activeTenant,
+      thread: targetThread,
+      availableSlots,
+      customEntries: customKbEntries,
+    })
+
+    const initialMode =
+      targetThread.handoffMode || (targetThread.aiAutopilot ? 'AI' : 'Human')
+
+    let calBooking = null
+    if (
+      initialMode === 'AI' &&
+      kbResult.bookingIntent.wantsToBook &&
+      kbResult.bookingIntent.matchedSlot
+    ) {
+      calBooking = await createCalcomBooking({
+        calConfig: calcomConfig,
+        slot: kbResult.bookingIntent.matchedSlot,
+        attendee: {
+          name: targetThread.contactName,
+          email: targetThread.email,
+          phone: targetThread.phone,
+          address: targetThread.address,
+        },
+        serviceName:
+          kbResult.matchedService?.name || targetThread.jobSummary.serviceNeeded,
+        companyName: activeTenant.companyName,
+      })
+    }
+
+    // Re-check live thread handoff mode after async await to prevent Human Takeover race condition!
+    const liveThreadAfterAwait =
+      threadsRef.current.find((t) => t.id === threadId) || targetThread
+    const liveMode =
+      liveThreadAfterAwait.handoffMode ||
+      (liveThreadAfterAwait.aiAutopilot ? 'AI' : 'Human')
+
+    if (liveMode !== 'AI' && calBooking?.ok && calBooking?.apiVerified) {
+      await cancelCalcomBooking(calBooking)
+      calBooking = null
+    }
+
+    const bookingSucceeded = Boolean(
+      liveMode === 'AI' && calBooking && calBooking.ok
+    )
+    const bookingRef =
+      calBooking?.bookingUid || calBooking?.holdReference || 'HOLD'
+
+    setThreads((prev) => {
+      const next = prev.map((thread) => {
+        if (thread.id !== threadId) return thread
+
+        const currentMode =
+          thread.handoffMode || (thread.aiAutopilot ? 'AI' : 'Human')
+
+        const customerMsg = {
+          id: `cust-sim-${Date.now()}`,
+          sender: 'customer',
+          channel,
+          timestamp,
+          text: cleanText,
+        }
+
+        const updatedJobSummary = {
+          ...thread.jobSummary,
+          serviceNeeded:
+            kbResult.matchedService?.name || thread.jobSummary.serviceNeeded,
+          estimatedValue:
+            kbResult.matchedService?.avgValue ||
+            thread.jobSummary.estimatedValue,
+          estimatedRange:
+            kbResult.matchedService?.range || thread.jobSummary.estimatedRange,
+          lastKbCitations: kbResult.citations,
+          ...(bookingSucceeded && currentMode === 'AI'
+            ? {
+                bookedSlot: calBooking.slotLabel,
+                calcomBooking: calBooking,
+              }
+            : {}),
+        }
+
+        if (currentMode === 'AI') {
+          const newMessages = [...thread.messages, customerMsg]
+          let aiReply = kbResult.replyText.replace(/\*\*/g, '')
+
+          if (bookingSucceeded) {
+            newMessages.push({
+              id: `sys-ai-cal-${Date.now() + 1}`,
+              sender: 'system',
+              channel,
+              timestamp,
+              eventType: 'booking',
+              text: calBooking.apiVerified
+                ? `📅 Alfred AI Cal.com v2 Verified Booking (UID: ${bookingRef}): ${calBooking.slotLabel}`
+                : `📅 Alfred AI Reserved Crew Dispatch Hold (${calBooking.mode} • Ref: ${bookingRef}): ${calBooking.slotLabel}`,
+            })
+            aiReply = calBooking.apiVerified
+              ? `${aiReply} Confirmed on Cal.com (UID: ${bookingRef}).`
+              : `${aiReply} Reserved under crew dispatch hold (${bookingRef}) — finalize or manage on Cal.com: ${calBooking.calUrl}`
+          } else if (calBooking && !calBooking.ok) {
+            newMessages.push({
+              id: `sys-ai-cal-err-${Date.now() + 1}`,
+              sender: 'system',
+              channel,
+              timestamp,
+              eventType: 'escalation',
+              text: `⚠️ Cal.com v2 Booking Failed (${calBooking.error}) — Slot was NOT confirmed.`,
+            })
+            aiReply = `I tried to lock in ${calBooking.slotLabel} on our live Cal.com calendar, ${
+              thread.contactName.split(' ')[0]
+            }, but the calendar service returned an error (${
+              calBooking.error
+            }). You can book directly here: ${calBooking.calUrl}`
+          }
+
+          newMessages.push({
+            id: `ai-kb-${Date.now() + 2}`,
+            sender: 'ai',
+            channel,
+            timestamp,
+            text: aiReply,
+            kbCitations: kbResult.citations,
+          })
+
+          return {
+            ...thread,
+            aiStatus: bookingSucceeded ? 'ready_for_quote' : thread.aiStatus,
+            opportunityStage: bookingSucceeded
+              ? 'appointment_booked'
+              : thread.opportunityStage || 'quote_sent',
+            lastActivity: 'Just now',
+            jobSummary: updatedJobSummary,
+            messages: newMessages,
+          }
+        }
+
+        if (currentMode === 'Draft') {
+          return {
+            ...thread,
+            unread: true,
+            unreadCount: (thread.unreadCount || 0) + 1,
+            lastActivity: 'Just now',
+            jobSummary: updatedJobSummary,
+            alfredDraft: {
+              id: `draft-kb-${Date.now()}`,
+              createdAt: timestamp,
+              reason: kbResult.bookingIntent.wantsToBook
+                ? `Customer requested Cal.com booking (${kbResult.bookingIntent.matchedSlot?.label}) • Grounded in ${kbResult.citations.length} KB article(s).`
+                : `Grounded in Knowledge Base: ${kbResult.citations
+                    .map((c) => c.title)
+                    .join(', ')}`,
+              text: kbResult.replyText.replace(/\*\*/g, ''),
+              citations: kbResult.citations,
+              pendingSlot: kbResult.bookingIntent.matchedSlot || null,
+            },
+            messages: [
+              ...thread.messages,
+              customerMsg,
+              {
+                id: `sys-draft-ready-${Date.now() + 1}`,
+                sender: 'system',
+                channel,
+                timestamp,
+                eventType: 'info',
+                text: `📝 Alfred prepared a KB-grounded private draft (${kbResult.citations.length} citation${
+                  kbResult.citations.length === 1 ? '' : 's'
+                }) awaiting your approval.`,
+              },
+            ],
+          }
+        }
+
+        // Human Takeover mode: AI stays silent so operator can reply
+        return {
+          ...thread,
+          unread: true,
+          unreadCount: (thread.unreadCount || 0) + 1,
+          lastActivity: 'Just now',
+          jobSummary: updatedJobSummary,
+          messages: [
+            ...thread.messages,
+            customerMsg,
+            {
+              id: `sys-human-hold-${Date.now() + 1}`,
+              sender: 'system',
+              channel,
+              timestamp,
+              eventType: 'autopilot_off',
+              text: `✋ Thread in Human Takeover — Alfred stayed silent and matched ${kbResult.citations.length} Knowledge Base article(s) for Co-Pilot Whisper.`,
+            },
+          ],
+        }
+      })
+      threadsRef.current = next
+      return next
+    })
+
+    setAlfredSetup((prev) => ({
+      ...prev,
+      spentMicros: prev.spentMicros + 32000,
+    }))
+
+    if (bookingSucceeded) {
+      showToast({
+        title: calBooking.apiVerified
+          ? '🤖📅 Alfred Booked on Cal.com v2!'
+          : '🤖📅 Alfred Reserved Dispatch Slot!',
+        message: `${calBooking.slotLabel} (${bookingRef})`,
+        type: 'success',
+      })
+    } else if (calBooking && !calBooking.ok) {
+      showToast({
+        title: '⚠️ Calendar Booking Rejected',
+        message: calBooking.error,
+        type: 'warning',
+      })
+    } else {
+      showToast({
+        title:
+          liveMode === 'AI'
+            ? `🤖 Alfred Replied (${kbResult.citations.length} KB Citation${
+                kbResult.citations.length === 1 ? '' : 's'
+              })`
+            : liveMode === 'Draft'
+              ? '📝 Alfred Prepared KB-Grounded Draft'
+              : '👤 Customer Message Logged (Human Mode)',
+        message:
+          kbResult.citations[0]?.title || 'Knowledge Base grounded response.',
+        type: 'info',
+      })
+    }
   }
 
   // PILLAR 3.1: Missed-Call Rescue Trigger
@@ -607,6 +1364,7 @@ export function PlatformProvider({ children }) {
       channels: ['Missed Call', 'SMS'],
       primaryChannel: 'Missed Call',
       aiStatus: 'qualifying',
+      opportunityStage: 'new_lead',
       aiAutopilot: true,
       handoffMode: 'AI',
       alfredDraft: null,
@@ -663,6 +1421,7 @@ export function PlatformProvider({ children }) {
         const firstName = thread.contactName.split(' ')[0]
         return {
           ...thread,
+          opportunityStage: 'job_won',
           lastActivity: 'Just now',
           jobSummary: {
             ...thread.jobSummary,
@@ -878,9 +1637,24 @@ export function PlatformProvider({ children }) {
         setLightboxPhoto,
         sendHumanMessage,
         updateThreadStatus,
+        updateOpportunityStage,
         generateCoPilotSuggestion,
         polishFieldVoiceNote,
         bookInspectionSlot,
+        confirmEmbedBooking,
+        cancelOrRescheduleBooking,
+        simulateCustomerInboundMessage,
+        calcomConfig,
+        updateCalcomConfig,
+        availableSlots,
+        calcomStatus,
+        refreshCalcomSlots,
+        calcomEmbedOpen,
+        setCalcomEmbedOpen,
+        knowledgeBaseArticles,
+        customKbEntries,
+        addCustomKnowledgeArticle,
+        deleteCustomKnowledgeArticle,
         triggerMissedCallRescue,
         triggerJobCompletedCheckIn,
         simulateCustomerReviewReply,
