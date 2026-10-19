@@ -8,8 +8,8 @@
 .platform-app-shell:not([data-view="client"]) {
   display: flex;
   flex-direction: column;
-  background: var(--bg-deep);
-  color: var(--text-primary);
+  background: #f4f4f2;
+  color: #202328;
   font-family: var(--sans);
 }
 
@@ -529,12 +529,14 @@
 .selected-photo-preview {
   display: flex;
   align-items: center;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .dock-thumb-stack {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   flex-shrink: 0;
 }
@@ -545,6 +547,18 @@
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid var(--line, #dcdfe1);
+}
+
+.dock-photo-meta {
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+@media (max-width: 640px) {
+  .dock-thumb {
+    width: 60px;
+    height: 44px;
+  }
 }
 
 .dock-photo-badge {
@@ -2037,17 +2051,21 @@
 }
 
 /* ==========================================================================
-   PILLAR 3: AUTOMATED SMS & REPUTATION WORKFLOWS LAB
+   PILLAR 3: AUTOMATED SMS & REPUTATION WORKFLOWS LAB (Codex live.css Aesthetic)
    ========================================================================== */
 .workflows-lab-container {
   max-width: 1220px;
   margin: 0 auto;
   padding: 28px;
+  color: #202328;
 }
 
 .workflows-header-banner {
   padding: 22px 26px;
   border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #dddcd5;
+  color: #202328;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2059,12 +2077,13 @@
 .workflows-header-banner h2 {
   margin: 4px 0 6px;
   font-size: 24px;
+  color: #202328;
 }
 
 .workflows-header-banner p {
   margin: 0;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: #59615e;
 }
 
 .workflows-two-col {
@@ -2076,6 +2095,9 @@
 .workflow-card {
   padding: 24px;
   border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #dddcd5;
+  color: #202328;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2099,32 +2121,35 @@
 .wf-eyebrow {
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--text-muted);
+  color: #6b706b;
 }
 
 .wf-card-header h3 {
   margin: 2px 0 0;
   font-size: 18px;
+  color: #202328;
 }
 
 .wf-description {
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: #59615e;
 }
 
 .sms-preview-box {
   padding: 14px;
   border-radius: 12px;
-  background: rgba(6, 9, 17, 0.8);
-  border: 1px solid var(--border-subtle);
+  background: #f6eee5;
+  border: 1px solid #eddfd0;
+  color: #202328;
 }
 
 .sms-preview-label {
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--brand);
+  font-weight: 700;
+  color: #8c3c31;
   margin-bottom: 6px;
 }
 
@@ -2132,6 +2157,7 @@
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
+  color: #202328;
 }
 
 .wf-form {
@@ -2155,15 +2181,16 @@
 .wf-field label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #59615e;
 }
 
 .wf-field input,
 .wf-select {
   padding: 9px 12px;
   border-radius: 8px;
-  background: #090d18;
-  border: 1px solid var(--border-subtle);
+  background: #ffffff;
+  color: #202328;
+  border: 1px solid #cccfc7;
   font-size: 13px;
 }
 
@@ -2175,7 +2202,7 @@
   padding: 12px;
   border-radius: 10px;
   border: none;
-  color: #05080f;
+  color: #ffffff;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -2184,8 +2211,8 @@
 .review-step-box {
   padding: 14px;
   border-radius: 12px;
-  background: rgba(6, 9, 17, 0.7);
-  border: 1px solid var(--border-subtle);
+  background: #fafaf7;
+  border: 1px solid #e7e5df;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2196,6 +2223,7 @@
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
+  color: #202328;
 }
 
 .step-badge {
@@ -2203,14 +2231,15 @@
   font-size: 10px;
   padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: #e9eee8;
+  color: #283e34;
 }
 
 .step-quote {
   margin: 0;
   font-size: 12px;
   font-style: italic;
-  color: var(--text-secondary);
+  color: #59615e;
 }
 
 .btn-secondary-full {
@@ -2220,11 +2249,16 @@
   gap: 7px;
   padding: 9px;
   border-radius: 8px;
-  border: 1px solid var(--border-bright);
-  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid #cccfc7;
+  background: #ffffff;
+  color: #202328;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.btn-secondary-full:hover {
+  background: #f2f2ee;
 }
 
 .preset-sentiment-btns {
@@ -2245,15 +2279,15 @@
 }
 
 .btn-preset-pos {
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  color: #6ee7b7;
+  background: #e4f1eb;
+  border: 1px solid #b6d8c8;
+  color: #166b55;
 }
 
 .btn-preset-neg {
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #fca5a5;
+  background: #fff0ef;
+  border: 1px solid #e6b8b5;
+  color: #942620;
 }
 
 .btn-preset-pos div,
@@ -2277,7 +2311,7 @@
 
 .custom-sentiment-form label {
   font-size: 11px;
-  color: var(--text-muted);
+  color: #59615e;
 }
 
 .custom-sentiment-row {
@@ -2289,8 +2323,9 @@
   flex: 1;
   padding: 8px 10px;
   border-radius: 8px;
-  background: #090d18;
-  border: 1px solid var(--border-subtle);
+  background: #ffffff;
+  color: #202328;
+  border: 1px solid #cccfc7;
   font-size: 12px;
 }
 
@@ -2301,7 +2336,7 @@
   padding: 0 12px;
   border-radius: 8px;
   border: none;
-  color: #05080f;
+  color: #ffffff !important;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -2313,11 +2348,11 @@
   gap: 10px;
   padding: 12px;
   border-radius: 10px;
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: #e4f1eb;
+  border: 1px solid #b6d8c8;
   font-size: 12px;
   line-height: 1.45;
-  color: var(--text-secondary);
+  color: #166b55;
 }
 
 /* ==========================================================================

@@ -48,3 +48,10 @@ When auditing `nb-insider`, `.git` had not been initialized during yesterday's s
 - Restyled the 3-Pane Unified Conversation Room (`ThreadQueue.jsx`, `UnifiedTimeline.jsx`, `JobSummaryCard.jsx`, `ConversationRoomView.jsx`, and `src/App.css`) to match Codex's warm daylight Owner Inbox visual language (`reference/codex-original/packages/live-site/live.css`: `#f4f4f2`, `#ffffff`, `#fbfaf7`, `#f7f7f3`, `#f5e8df`, `#283e34`, `#fff9ed`, `#f2f2ee`, `#f6eee5`, `#e7eee7`).
 - Added inline editable `<textarea className="alfred-draft-textarea">` inside `.alfred-private-draft-card` (matching Codex's `owner.html` `#draft-message`) while preserving the 3-mode `[ 🤖 AI Autopilot | 📝 Alfred Drafts | ✋ Take Over ]` toggle, automatic human-reply Autopilot shutoff guardrail, Co-Pilot Whisper, and photo lightbox.
 - Verified `npm run lint` (0 warnings, 0 errors) and `npm run build` (426ms).
+
+---
+
+## [2026-10-18 20:35 CDT] Milestone 4 / Task #4 Complete: Missed-Call Rescue, TOS-Safe Review Engine & Final Codex Astra 6 Review Gate
+- Restyled `src/components/workflows/WorkflowsLabView.jsx` and its `.workflows-lab-view` / `.workflow-card` rules in `src/App.css` to match Codex's warm daylight aesthetic (`#f4f4f2`, `#ffffff`, `#fbfaf7`, `#283e34`, `#f2f2ee`, `#e7eee7`) and added a live Selected Thread Status Bar (`AI Status`, `Handoff Mode`, `Review Stage`) with a one-click jump into the 3-Pane Conversation Room.
+- Ran the Final Milestone 4 Codex Astra 6 Surgical Review Gate (`REVIEW_NOTES.md`) and resolved all 4 items: prevented empty/whitespace draft approvals in `approveAlfredDraft` + `UnifiedTimeline.jsx`, fixed `simulateCustomerReviewReply` so unresolved `"leak"` / `"leaks"` complaints escalate to `🚨 Needs Human` while resolved-leak praise (`"fixed the flashing leak"`) routes as positive, added responsive wrapping for 3-photo previews on mobile viewports, and included `activeTenant.googleReviewUrl` unconditionally in post-job check-ins for strict Google/FTC compliance.
+- Verified `npm run lint` (0 warnings, 0 errors) and `npm run build` and committed as `feat(argon+astra): polish missed-call rescue and TOS-safe review engine`.

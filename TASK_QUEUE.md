@@ -19,6 +19,6 @@
   - Verify the `[ 🤖 AI Autopilot: ON | ✋ Take Over ]` header toggle, automatic human-reply Autopilot shutoff guardrail, Alfred draft approval card, Co-Pilot Whisper ("Suggest Reply" + Voice-Note-to-Polished-SMS), and click-to-enlarge photo lightbox.
 
 ## Milestone 4: TOS-Safe Conversational SMS Review Engine & Missed-Call Rescue
-- [WIP: ARGON] **Task #4: Verify & Polish Missed-Call Rescue & TOS-Safe SMS Review Engine**
-  - Verify end-to-end simulation of Missed-Call Rescue and "Job Completed" conversational check-in in `WorkflowsLabView.jsx` and `PlatformContext.jsx` (routing positive sentiment to direct Google Review link and negative sentiment to `🚨 Needs Human` private escalation without star-gating).
+- [x] **Task #4: Verify & Polish Missed-Call Rescue & TOS-Safe SMS Review Engine**
+  - Verify end-to-end simulation of Missed-Call Rescue and "Job Completed" conversational check-in in `WorkflowsLabView.jsx` and `PlatformContext.jsx` (unconditional Google Review link access + AI sentiment triage escalating negative replies to `🚨 Needs Human` and pausing AI Autopilot).
   - Run final Milestone Codex review gate, resolve all `REVIEW_NOTES.md` items, and log completion in `PROGRESS_LOG.md`.

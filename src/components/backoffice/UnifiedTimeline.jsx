@@ -452,10 +452,16 @@ export default function UnifiedTimeline() {
             <button
               type="button"
               className="btn-xs-primary"
-              style={{ backgroundColor: '#283e34', color: '#ffffff' }}
-              onClick={() =>
+              disabled={!activeDraftText.trim()}
+              style={{
+                backgroundColor: '#283e34',
+                color: '#ffffff',
+                opacity: activeDraftText.trim() ? 1 : 0.55,
+              }}
+              onClick={() => {
+                if (!activeDraftText.trim()) return
                 approveAlfredDraft(selectedThread.id, activeDraftText)
-              }
+              }}
             >
               <Check size={13} /> Approve &amp; Send to Homeowner
             </button>

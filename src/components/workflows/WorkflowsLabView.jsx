@@ -25,10 +25,12 @@ export default function WorkflowsLabView() {
 
   // Missed-Call Rescue Simulator state
   const [callerName, setCallerName] = useState('Jordan Miller')
-  const [callerPhone, setCallerPhone] = useState('(512) 814-2905')
-  const [callerAddress, setCallerAddress] = useState(
-    `3408 South Congress Ave, ${activeTenant.city}`
-  )
+  const [callerPhone, setCallerPhone] = useState('(603) 814-2905')
+  const [callerAddress, setCallerAddress] = useState('')
+  const resolvedCallerAddress =
+    callerAddress ||
+    activeTenant.addressLine ||
+    `146 Londonderry Turnpike, ${activeTenant.city}`
 
   // TOS-Safe Review Sentiment Simulator state
   const [customCustomerReply, setCustomCustomerReply] = useState(
@@ -40,19 +42,19 @@ export default function WorkflowsLabView() {
     triggerMissedCallRescue({
       callerName,
       callerPhone,
-      callerAddress,
+      callerAddress: resolvedCallerAddress,
     })
   }
 
   const handleRunCustomSentiment = (e) => {
     e.preventDefault()
-    if (!customCustomerReply.trim()) return
+    if (!customCustomerReply.trim() || !selectedThread) return
     simulateCustomerReviewReply(selectedThread.id, customCustomerReply, null)
   }
 
   return (
     <div className="workflows-lab-container">
-      <div className="workflows-header-banner glass-panel">
+      <div className="workflows-header-banner">
         <div>
           <span
             className="section-tag"
@@ -73,7 +75,7 @@ export default function WorkflowsLabView() {
         <button
           type="button"
           className="btn-primary"
-          style={{ backgroundColor: activeTenant.brandColor }}
+          style={{ backgroundColor: activeTenant.brandColor, color: '#ffffff' }}
           onClick={() => setActiveView('backoffice')}
         >
           <span>Open 3-Pane Conversation Room</span>
@@ -83,12 +85,12 @@ export default function WorkflowsLabView() {
 
       <div className="workflows-two-col">
         {/* WORKFLOW 1: Missed-Call Rescue Engine */}
-        <div className="workflow-card glass-panel">
+        <div className="workflow-card">
           <div className="wf-card-header">
             <div
               className="wf-icon-box"
               style={{
-                backgroundColor: `${activeTenant.brandColor}22`,
+                backgroundColor: `${activeTenant.brandColor}1a`,
                 color: activeTenant.brandColor,
               }}
             >
@@ -138,7 +140,7 @@ export default function WorkflowsLabView() {
               <label>Caller Service Address / Territory</label>
               <input
                 type="text"
-                value={callerAddress}
+                value={resolvedCallerAddress}
                 onChange={(e) => setCallerAddress(e.target.value)}
               />
             </div>
@@ -146,7 +148,7 @@ export default function WorkflowsLabView() {
             <button
               type="submit"
               className="btn-wf-trigger"
-              style={{ backgroundColor: activeTenant.brandColor }}
+              style={{ backgroundColor: activeTenant.brandColor, color: '#ffffff' }}
             >
               <PhoneMissed size={15} />
               <span>📞 Simulate Missed Call & Fire Rescue SMS</span>
@@ -155,7 +157,7 @@ export default function WorkflowsLabView() {
         </div>
 
         {/* WORKFLOW 2: TOS-Safe Conversational Review Engine */}
-        <div className="workflow-card glass-panel">
+        <div className="workflow-card">
           <div className="wf-card-header">
             <div
               className="wf-icon-box"
@@ -175,7 +177,7 @@ export default function WorkflowsLabView() {
           </div>
 
           <p className="wf-description">
-            Traditional “1–5 star funnel” web pages violate Google & FTC rules. Instead, we send a natural post-job SMS check-in and use <strong>AI Sentiment Analysis</strong> to either share your direct Google link or escalate issues to <code>🚨 Needs Human</code> privately.
+            Traditional “1–5 star funnel” web pages violate Google &amp; FTC rules. Instead, every homeowner receives a conversational post-job SMS check-in with your direct Google link included upfront, while <strong>AI Sentiment Analysis</strong> automatically escalates any issue reply to <code>🚨 Needs Human</code> and pauses AI Autopilot.
           </p>
 
           {/* Select Target Customer Thread */}
@@ -198,12 +200,12 @@ export default function WorkflowsLabView() {
           {/* Step 1: Send Natural Check-in */}
           <div className="review-step-box">
             <div className="step-box-header">
-              <strong>Step 1: Trigger “Job Completed” Natural Check-In</strong>
+              <strong>Step 1: Trigger “Job Completed” Check-In + Direct Review Link</strong>
               <span className="step-badge">SMS Trigger</span>
             </div>
             <p className="step-quote">
               “Hi {selectedThread?.contactName.split(' ')[0]}! Thanks again for trusting{' '}
-              {activeTenant.companyName} today. How did everything go with the crew?”
+              {activeTenant.companyName} today. How did everything go with the crew? You can also share a public review anytime on Google: {activeTenant.googleReviewUrl}”
             </p>
             <button
               type="button"
@@ -211,14 +213,14 @@ export default function WorkflowsLabView() {
               onClick={() => triggerJobCompletedCheckIn(selectedThread.id)}
             >
               <CheckCircle2 size={14} />
-              <span>Send “How did everything go today?” Check-In SMS</span>
+              <span>Send Post-Job Check-In + Unconditional Google Link</span>
             </button>
           </div>
 
           {/* Step 2: Simulate Customer Reply & AI Sentiment Routing */}
           <div className="review-step-box">
             <div className="step-box-header">
-              <strong>Step 2: AI Sentiment Analysis & Automatic Routing</strong>
+              <strong>Step 2: AI Sentiment Analysis &amp; Service Triage</strong>
               <span className="step-badge">LLM Classifier</span>
             </div>
 
@@ -233,7 +235,7 @@ export default function WorkflowsLabView() {
                 <ThumbsUp size={14} />
                 <div>
                   <strong>Simulate Positive Reply</strong>
-                  <span>Routes direct Google Review link</span>
+                  <span>Sends warm thank-you &amp; Google link reminder</span>
                 </div>
               </button>
 
@@ -247,7 +249,7 @@ export default function WorkflowsLabView() {
                 <AlertTriangle size={14} />
                 <div>
                   <strong>Simulate Negative / Issue Reply</strong>
-                  <span>Flips to 🚨 Needs Human & pauses AI</span>
+                  <span>Flips to 🚨 Needs Human &amp; pauses AI (link stays open)</span>
                 </div>
               </button>
             </div>
@@ -259,7 +261,7 @@ export default function WorkflowsLabView() {
                   type="text"
                   value={customCustomerReply}
                   onChange={(e) => setCustomCustomerReply(e.target.value)}
-                  placeholder="e.g., Crew was super polite! OR They left nails in the driveway..."
+                  placeholder="e.g., Crew fixed the leak! OR The roof still leaks..."
                 />
                 <button
                   type="submit"
@@ -267,7 +269,7 @@ export default function WorkflowsLabView() {
                   style={{ backgroundColor: activeTenant.brandColor }}
                 >
                   <Sparkles size={14} />
-                  <span>Analyze & Route</span>
+                  <span>Analyze &amp; Route</span>
                 </button>
               </div>
             </form>
@@ -276,7 +278,7 @@ export default function WorkflowsLabView() {
           <div className="tos-compliance-note">
             <ShieldCheck size={16} className="text-emerald" />
             <span>
-              <strong>Why this is 100% TOS-Safe:</strong> We never block or hide a review form behind a star-rating gate. Asking a conversational customer service question via SMS and offering a direct Google link or human manager follow-up keeps your Google Business Profile safe.
+              <strong>Why this is 100% TOS-Safe:</strong> Every customer receives your direct Google review link unconditionally (zero star-gating or selective solicitation), while AI sentiment triage immediately alerts a human manager whenever a homeowner reports a service issue.
             </span>
           </div>
         </div>

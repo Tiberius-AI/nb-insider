@@ -405,11 +405,17 @@ export function PlatformProvider({ children }) {
 
   // Approve & Send or Dismiss Alfred Private Draft (from Tiberius owner.mjs)
   const approveAlfredDraft = (threadId, customText) => {
+    const targetThread = threads.find((t) => t.id === threadId)
+    if (!targetThread || !targetThread.alfredDraft) return
+    const rawText =
+      customText !== undefined ? customText : targetThread.alfredDraft.text
+    const finalMsg = String(rawText ?? '').trim()
+    if (!finalMsg) return
+
     const timestamp = formatNowTime()
     setThreads((prev) =>
       prev.map((thread) => {
         if (thread.id !== threadId || !thread.alfredDraft) return thread
-        const finalMsg = (customText || thread.alfredDraft.text).trim()
         return {
           ...thread,
           alfredDraft: null,
@@ -670,14 +676,14 @@ export function PlatformProvider({ children }) {
               channel: 'SMS',
               timestamp,
               eventType: 'job_completed',
-              text: '✅ Job Marked Completed — TOS-Safe Conversational Check-In triggered (Zero Star-Gating)',
+              text: '✅ Job Marked Completed — TOS-Safe Conversational Check-In + Direct Google Review Link sent (Zero Review-Gating)',
             },
             {
               id: `rev-sms-${Date.now() + 1}`,
               sender: 'ai',
               channel: 'SMS',
               timestamp,
-              text: `Hi ${firstName}! Thanks again for trusting ${activeTenant.companyName} with your ${thread.jobSummary.serviceNeeded.toLowerCase()} today. How did everything go with the crew?`,
+              text: `Hi ${firstName}! Thanks again for trusting ${activeTenant.companyName} with your ${thread.jobSummary.serviceNeeded.toLowerCase()} today. How did everything go with the crew? You can also share a public review anytime on Google: ${activeTenant.googleReviewUrl}`,
             },
           ],
         }
@@ -686,7 +692,7 @@ export function PlatformProvider({ children }) {
 
     showToast({
       title: 'Job Completed Check-In Sent',
-      message: 'Natural SMS check-in sent. Ready for AI sentiment analysis on reply.',
+      message: 'Unconditional Google review link + natural SMS check-in sent.',
       type: 'success',
     })
   }
@@ -704,6 +710,7 @@ export function PlatformProvider({ children }) {
       'mess',
       'nails',
       'leak',
+      'leaking',
       'unhappy',
       'issue',
       'problem',
@@ -712,6 +719,8 @@ export function PlatformProvider({ children }) {
       'expensive',
       'rude',
       'disappointed',
+      'dented',
+      'damaged',
     ]
 
     setThreads((prev) =>
@@ -725,12 +734,18 @@ export function PlatformProvider({ children }) {
             ? 'Honestly the repair looks okay, but the crew left roofing nails near our driveway and a dented downspout.'
             : 'Everything went great! The crew arrived right on time, showed me the flashing photos, and cleaned the whole driveway.')
 
+        // Strip resolved-leak praise (e.g. "fixed the flashing leak") before checking negative keywords
+        const sanitizedForKeywords = replyText
+          .toLowerCase()
+          .replace(
+            /\b(?:fixed|repaired|stopped|solved|sealed)\s+(?:the\s+|our\s+|my\s+|a\s+)?(?:\w+\s+)?leaks?\b/g,
+            'resolved_repair'
+          )
+
         const isNegative =
           forcedSentiment === 'negative' ||
           (forcedSentiment !== 'positive' &&
-            negativeKeywords.some((kw) =>
-              replyText.toLowerCase().includes(kw)
-            ))
+            negativeKeywords.some((kw) => sanitizedForKeywords.includes(kw)))
 
         const customerMsg = {
           id: `rev-cust-${Date.now()}`,
@@ -747,14 +762,14 @@ export function PlatformProvider({ children }) {
             channel: 'SMS',
             timestamp,
             eventType: 'sentiment_positive',
-            text: '🟢 AI Sentiment Analysis: POSITIVE (0.97) — Routing direct Google Review link',
+            text: '🟢 AI Sentiment Analysis: POSITIVE (0.97) — Sending warm thank-you & Google Review reminder',
           }
           const aiReviewLinkMsg = {
             id: `rev-ai-pos-${Date.now() + 2}`,
             sender: 'ai',
             channel: 'SMS',
             timestamp,
-            text: `That means the world to our local crew, ${firstName}! If you have 30 seconds, would you mind sharing your experience on Google? Here is our direct link: ${activeTenant.googleReviewUrl} — Thank you again!`,
+            text: `That means the world to our local crew, ${firstName}! If you haven't already and have 30 seconds, we'd love for you to share your experience on Google: ${activeTenant.googleReviewUrl} — Thank you again!`,
           }
 
           return {
@@ -773,14 +788,14 @@ export function PlatformProvider({ children }) {
             channel: 'SMS',
             timestamp,
             eventType: 'escalation',
-            text: '🚨 AI Sentiment Analysis: ISSUE DETECTED (0.94) — Flipped thread to [🚨 Needs Human], paused AI Autopilot, and alerted Owner privately.',
+            text: '🚨 AI Sentiment Analysis: ISSUE DETECTED (0.94) — Flipped thread to [🚨 Needs Human], paused AI Autopilot, and alerted Owner for immediate resolution.',
           }
           const aiEmpatheticHoldMsg = {
             id: `rev-ai-neg-${Date.now() + 2}`,
             sender: 'ai',
             channel: 'SMS',
             timestamp,
-            text: `Thank you for telling us directly, ${firstName}—I am so sorry about that. I have flagged our owner & field supervisor right now so we can come make this 100% right today. Expect a personal call/text shortly.`,
+            text: `Thank you for telling us directly, ${firstName}—I am so sorry about that. I have flagged our owner & field supervisor right now so we can come make this 100% right today. Expect a personal call/text shortly, and our public Google review link (${activeTenant.googleReviewUrl}) remains open anytime.`,
           }
 
           return {
