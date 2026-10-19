@@ -39,6 +39,7 @@ export default function UnifiedTimeline() {
   const [composerChannel, setComposerChannel] = useState('SMS')
   const [showVoiceModal, setShowVoiceModal] = useState(false)
   const [showAlfredSetup, setShowAlfredSetup] = useState(false)
+  const [draftEdits, setDraftEdits] = useState({})
   const [rawVoiceText, setRawVoiceText] = useState(
     'tell him we looked at the flashing gap by the brick, we can seal and re-lead it tomorrow at 2pm for 580 bucks'
   )
@@ -54,6 +55,11 @@ export default function UnifiedTimeline() {
 
   const currentHandoff =
     selectedThread.handoffMode || (selectedThread.aiAutopilot ? 'AI' : 'Human')
+  const activeDraftText =
+    selectedThread.alfredDraft &&
+    draftEdits[selectedThread.alfredDraft.id] !== undefined
+      ? draftEdits[selectedThread.alfredDraft.id]
+      : selectedThread.alfredDraft?.text || ''
 
   const handleSendHuman = (e) => {
     e.preventDefault()
@@ -185,7 +191,7 @@ export default function UnifiedTimeline() {
 
       {/* Tiberius "Make Alfred Your Own" 4-Preset Setup Drawer + AI Budget Meter (Recreated from owner-setup.mjs) */}
       {showAlfredSetup && (
-        <div className="alfred-setup-drawer glass-panel">
+        <div className="alfred-setup-drawer">
           <div className="alfred-setup-header">
             <div>
               <span
@@ -419,7 +425,7 @@ export default function UnifiedTimeline() {
 
       {/* Tiberius Private Alfred Draft Approval Box (#alfred-draft from owner.mjs) */}
       {selectedThread.alfredDraft && (
-        <div className="alfred-private-draft-card glass-panel">
+        <div className="alfred-private-draft-card">
           <div className="alfred-draft-top">
             <div className="alfred-draft-badge">
               <Sparkles size={13} style={{ color: activeTenant.brandColor }} />
@@ -430,25 +436,38 @@ export default function UnifiedTimeline() {
               {selectedThread.alfredDraft.reason}
             </span>
           </div>
-          <p className="alfred-draft-body">“{selectedThread.alfredDraft.text}”</p>
+          <textarea
+            aria-label="Review or edit Alfred's draft before sending"
+            className="alfred-draft-textarea"
+            rows={2}
+            value={activeDraftText}
+            onChange={(e) =>
+              setDraftEdits((prev) => ({
+                ...prev,
+                [selectedThread.alfredDraft.id]: e.target.value,
+              }))
+            }
+          />
           <div className="alfred-draft-actions">
             <button
               type="button"
               className="btn-xs-primary"
-              style={{ backgroundColor: activeTenant.brandColor }}
-              onClick={() => approveAlfredDraft(selectedThread.id)}
+              style={{ backgroundColor: '#283e34', color: '#ffffff' }}
+              onClick={() =>
+                approveAlfredDraft(selectedThread.id, activeDraftText)
+              }
             >
-              <Check size={13} /> Approve & Send to Homeowner
+              <Check size={13} /> Approve &amp; Send to Homeowner
             </button>
             <button
               type="button"
               className="btn-xs-outline"
               onClick={() => {
-                setComposerText(selectedThread.alfredDraft.text)
+                setComposerText(activeDraftText)
                 dismissAlfredDraft(selectedThread.id)
               }}
             >
-              <FileEdit size={13} /> Edit in Composer
+              <FileEdit size={13} /> Move to Composer
             </button>
             <button
               type="button"
@@ -463,7 +482,7 @@ export default function UnifiedTimeline() {
 
       {/* Field Voice-Note-to-Polished-SMS Drawer */}
       {showVoiceModal && (
-        <div className="voice-whisper-drawer glass-panel">
+        <div className="voice-whisper-drawer">
           <div className="voice-drawer-top">
             <div className="voice-title">
               <Mic size={15} style={{ color: activeTenant.brandColor }} />

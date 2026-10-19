@@ -31,7 +31,7 @@ export default function ConversationRoomView() {
           aria-label="Enlarged customer photo"
         >
           <div
-            className="tiberius-lightbox-modal glass-panel"
+            className="tiberius-lightbox-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="lightbox-header">
