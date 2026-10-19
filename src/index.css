@@ -16,9 +16,17 @@
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 #root {
   width: 100%;
+  max-width: 100%;
   min-height: 100vh;
+  overflow-x: clip;
 }
 
 code,

@@ -275,8 +275,8 @@ export default function ContextualAIDock() {
             <Camera size={15} />
             <span>
               {primaryPhoto
-                ? `📷 ${selectedPhotos.length} Photo${selectedPhotos.length === 1 ? '' : 's'} Attached`
-                : '📷 Snap / Upload Photo'}
+                ? `${selectedPhotos.length} Photo${selectedPhotos.length === 1 ? '' : 's'} Attached`
+                : 'Snap / Upload Photo'}
             </span>
           </button>
 

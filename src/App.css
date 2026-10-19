@@ -3,6 +3,13 @@
    ========================================================================== */
 .platform-app-shell {
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.platform-view-stage {
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .platform-app-shell:not([data-view="client"]) {
@@ -17,7 +24,7 @@
   position: sticky;
   top: 0;
   z-index: 120;
-  height: 58px;
+  min-height: 58px;
   padding: 0 20px;
   display: flex;
   align-items: center;
@@ -34,12 +41,14 @@
   display: flex;
   align-items: center;
   gap: 20px;
+  min-width: 0;
 }
 
 .platform-brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .brand-dot {
@@ -47,6 +56,7 @@
   height: 10px;
   border-radius: 999px;
   box-shadow: 0 0 12px var(--brand);
+  flex-shrink: 0;
 }
 
 .platform-title {
@@ -54,11 +64,13 @@
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 .platform-subtitle {
   font-size: 11px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .tenant-selector-wrap {
@@ -69,12 +81,14 @@
   background: rgba(20, 28, 47, 0.75);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
+  min-width: 0;
 }
 
 .tenant-label {
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .tenant-select {
@@ -85,6 +99,8 @@
   color: var(--text-primary);
   cursor: pointer;
   outline: none;
+  min-width: 0;
+  text-overflow: ellipsis;
 }
 
 .tenant-select option {
@@ -104,11 +120,18 @@
   background: rgba(255, 255, 255, 0.06);
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .btn-json-config:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: var(--brand);
+}
+
+.config-btn-text-short,
+.pillar-label-short {
+  display: none;
 }
 
 .pillar-nav {
@@ -130,6 +153,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.18s ease;
+  white-space: nowrap;
 }
 
 .pillar-tab:hover {
@@ -160,6 +184,68 @@
   background: rgba(239, 68, 68, 0.2);
   border: 1px solid rgba(239, 68, 68, 0.55);
   color: #fca5a5;
+}
+
+@media (max-width: 1120px) {
+  .platform-subtitle,
+  .tenant-label {
+    display: none;
+  }
+  .topbar-left {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 900px) {
+  .platform-topbar {
+    height: auto;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .topbar-left {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .tenant-selector-wrap {
+    flex: 1 1 auto;
+    justify-content: space-between;
+    padding: 4px 8px;
+  }
+  .tenant-select {
+    max-width: 175px;
+    font-size: 11px;
+  }
+  .config-btn-text-full,
+  .pillar-label-full {
+    display: none;
+  }
+  .config-btn-text-short,
+  .pillar-label-short {
+    display: inline;
+  }
+  .pillar-nav {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .pillar-tab {
+    justify-content: center;
+    padding: 7px 6px;
+    font-size: 11px;
+    gap: 5px;
+  }
+}
+
+@media (max-width: 420px) {
+  .platform-title {
+    font-size: 10.5px;
+  }
+  .tenant-select {
+    max-width: 130px;
+  }
 }
 
 /* ==========================================================================
@@ -2088,7 +2174,7 @@
 
 .workflows-two-col {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
   gap: 22px;
 }
 
@@ -2559,30 +2645,66 @@
 /* ==========================================================================
    CODEX ORIGINAL CLIENT SITE BRIDGE (Hero Callout, AI Dock & Dialog Backdrop)
    ========================================================================== */
-.codex-site-wrapper .hero-copy {
-  padding-top: clamp(32px, 5.5vh, 80px);
+.codex-site-wrapper {
+  max-width: 100%;
+  overflow-x: clip;
 }
 
-.codex-site-wrapper .hero-bottom {
-  bottom: 112px !important;
+.codex-site-wrapper .hero-sticky {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  max-height: none !important;
+  padding-bottom: 16px;
+}
+
+.codex-site-wrapper .hero-copy {
+  padding-top: clamp(24px, 4vh, 56px);
+  width: min(1320px, calc(100% - 80px));
+}
+
+body[data-site="scg-roofing"] .codex-site-wrapper .hero h1 {
+  font-size: clamp(2.8rem, 4.6vw, 5.2rem);
+  line-height: 1.04;
+}
+
+.codex-site-wrapper .hero-description {
+  margin-top: 16px;
+}
+
+.codex-site-wrapper .hero-copy .button {
+  margin-top: 18px;
+}
+
+.codex-site-wrapper .hero-proof {
+  margin-top: 18px;
 }
 
 .codex-site-wrapper .contextual-ai-dock-wrapper {
-  position: absolute;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
+  position: relative;
+  left: auto;
+  bottom: auto;
+  transform: none;
   z-index: 20;
   width: min(1240px, calc(100% - 64px));
-  margin: 0;
+  margin: 18px auto 10px;
+}
+
+.codex-site-wrapper .hero-bottom {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto !important;
+  width: min(1320px, calc(100% - 80px));
+  margin: 4px auto 0;
 }
 
 .codex-scroll-callout {
   position: absolute;
-  top: clamp(36px, 6vh, 84px);
+  top: clamp(28px, 4.5vh, 64px);
   right: max(28px, calc((100% - 1320px) / 2 + 28px));
   z-index: 12;
-  width: min(340px, 42vw);
+  width: min(340px, 38vw);
   background: rgba(255, 254, 250, 0.94);
   color: var(--ink, #24292f);
   border: 1px solid var(--line, #dcdfe1);
@@ -2660,43 +2782,164 @@
   border-color: var(--border-bright);
 }
 
+@media (min-width: 901px) {
+  .codex-site-wrapper .hero {
+    height: 185svh;
+  }
+  .codex-site-wrapper .hero-sticky {
+    top: 58px;
+    min-height: calc(100svh - 58px);
+    height: auto;
+    max-height: none !important;
+  }
+}
+
 @media (max-width: 980px) {
   .codex-scroll-callout {
     display: none;
-  }
-  .codex-site-wrapper .contextual-ai-dock-wrapper {
-    width: calc(100% - 28px);
-    bottom: 10px;
   }
   .codex-site-wrapper .dock-quick-chips {
     display: none;
   }
   .codex-site-wrapper .dock-main-controls {
-    grid-template-columns: 1.3fr auto 100px;
+    grid-template-columns: 1.3fr auto 100px 1fr auto;
     gap: 6px;
-  }
-  .codex-site-wrapper .hero-bottom {
-    bottom: 148px !important;
   }
 }
 
-@media (max-width: 640px) {
-  .codex-site-wrapper .hero-copy {
-    padding-top: 16px;
+@media (max-width: 900px) {
+  html,
+  body,
+  #root,
+  .platform-app-shell,
+  .platform-view-stage,
+  .codex-site-wrapper {
+    max-width: 100vw;
+    overflow-x: hidden;
   }
-  .codex-site-wrapper .dock-top-strip,
-  .codex-site-wrapper .zip-group {
-    display: none;
+  .codex-site-wrapper .hero {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  .codex-site-wrapper .hero-sticky {
+    position: relative !important;
+    top: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding-bottom: 22px;
+  }
+  .codex-site-wrapper .scene-meter,
+  .codex-site-wrapper .scroll-hint {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .codex-site-wrapper .demo-bar {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 7px 16px;
+    font-size: 0.6rem;
+    line-height: 1.35;
+  }
+  .codex-site-wrapper .site-header {
+    height: 64px;
+    padding: 0 16px;
+  }
+  body[data-site="scg-roofing"] .codex-site-wrapper .brand {
+    font-size: 1.35rem;
+    gap: 8px;
+  }
+  body[data-site="scg-roofing"] .codex-site-wrapper .brand svg {
+    width: 30px;
+  }
+  body[data-site="scg-roofing"] .codex-site-wrapper .brand small {
+    font-size: 0.42rem;
+    letter-spacing: 0.28em;
+  }
+  .codex-site-wrapper .menu-toggle {
+    padding: 7px 12px;
+    min-height: 38px;
+    font-size: 0.72rem;
+    gap: 8px;
+  }
+  .codex-site-wrapper .hero-copy {
+    width: calc(100% - 32px);
+    padding-top: 22px !important;
+    padding-bottom: 4px;
+  }
+  .codex-site-wrapper .hero-copy .eyebrow {
+    font-size: 0.56rem;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+    max-width: 100%;
+  }
+  body[data-site="scg-roofing"] .codex-site-wrapper .hero h1,
+  .codex-site-wrapper .hero h1 {
+    font-size: clamp(2.2rem, 9.2vw, 3rem) !important;
+    line-height: 1.05;
+  }
+  .codex-site-wrapper .hero-description {
+    font-size: 0.88rem;
+    line-height: 1.55;
+    margin-top: 12px;
+    max-width: 100%;
+  }
+  .codex-site-wrapper .hero-copy .button {
+    margin-top: 16px;
+    width: 100%;
+    justify-content: space-between;
+    padding: 13px 18px;
+    font-size: 0.82rem;
+  }
+  .codex-site-wrapper .hero-proof {
+    margin-top: 18px;
+    max-width: 100%;
+  }
+  .codex-site-wrapper .trust-indicators {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+    max-width: 100%;
+  }
+  .codex-site-wrapper .contextual-ai-dock-wrapper {
+    width: calc(100% - 32px) !important;
+    margin: 18px auto 10px !important;
   }
   .codex-site-wrapper .contextual-ai-dock {
-    padding: 9px 11px;
+    padding: 12px;
+  }
+  .codex-site-wrapper .dock-top-strip {
+    display: flex !important;
+    margin-bottom: 8px;
+    font-size: 0.7rem;
+  }
+  .codex-site-wrapper .dock-quick-chips,
+  .codex-site-wrapper .zip-group {
+    display: none !important;
   }
   .codex-site-wrapper .dock-main-controls {
-    grid-template-columns: 1fr auto;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .codex-site-wrapper .dock-input-group.question-group,
+  .codex-site-wrapper .dock-input-group.phone-group {
+    grid-column: 1 / -1;
+  }
+  .codex-site-wrapper .dock-photo-btn,
+  .codex-site-wrapper .dock-submit-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 12px;
+    font-size: 0.78rem;
   }
   .codex-site-wrapper .hero-bottom {
-    bottom: 122px !important;
+    width: calc(100% - 32px);
+    margin: 4px auto 0 !important;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-size: 0.5rem;
   }
 }
 

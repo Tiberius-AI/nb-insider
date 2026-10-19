@@ -110,7 +110,8 @@ export default function PlatformTopBar() {
               title="Inspect or edit single JSON config & Rent/Buy pricing tiers"
             >
               <Code2 size={14} />
-              <span>JSON Config & Tiers</span>
+              <span className="config-btn-text-full">JSON Config &amp; Tiers</span>
+              <span className="config-btn-text-short">Config</span>
             </button>
           </div>
         </div>
@@ -122,7 +123,8 @@ export default function PlatformTopBar() {
             onClick={() => setActiveView('client')}
           >
             <Sparkles size={15} />
-            <span>Pillar 1: Client Scrollytelling Site</span>
+            <span className="pillar-label-full">Pillar 1: Client Scrollytelling Site</span>
+            <span className="pillar-label-short">Client Site</span>
           </button>
 
           <button
@@ -131,7 +133,8 @@ export default function PlatformTopBar() {
             onClick={() => setActiveView('backoffice')}
           >
             <MessageSquare size={15} />
-            <span>Pillar 2: 3-Pane Conversation Room</span>
+            <span className="pillar-label-full">Pillar 2: 3-Pane Conversation Room</span>
+            <span className="pillar-label-short">Inbox Room</span>
             {unreadTotal > 0 && (
               <span className="nav-badge unread">{unreadTotal}</span>
             )}
@@ -148,7 +151,8 @@ export default function PlatformTopBar() {
             onClick={() => setActiveView('workflows')}
           >
             <Workflow size={15} />
-            <span>Pillar 3: SMS & Review Workflows</span>
+            <span className="pillar-label-full">Pillar 3: SMS &amp; Review Workflows</span>
+            <span className="pillar-label-short">Workflows</span>
           </button>
         </nav>
       </header>
